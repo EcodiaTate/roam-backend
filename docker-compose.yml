@@ -1,0 +1,26 @@
+services:
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: roam-osrm
+    command: >
+      osrm-routed --algorithm mld /data/queensland-latest.osrm
+    volumes:
+      - ./app/data/osrm:/data:ro
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  backend:
+    build: .
+    container_name: roam-backend
+    environment:
+      - OSRM_BASE_URL=http://osrm:5000
+      - DATA_DIR=/app/app/data
+      - CACHE_DB_PATH=/app/app/data/roam_cache.db
+    volumes:
+      - ./app/data:/app/app/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - osrm
+    restart: unless-stopped

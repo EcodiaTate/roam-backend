@@ -114,7 +114,6 @@ class CorridorGraphPack(BaseModel):
 # ──────────────────────────────────────────────────────────────
 # Places (minimal v1)
 # ──────────────────────────────────────────────────────────────
-
 PlaceCategory = Literal[
     "fuel", "camp", "water", "toilet", "town",
     "grocery", "mechanic", "hospital", "pharmacy",
@@ -123,6 +122,8 @@ PlaceCategory = Literal[
     "pub", "bar",
     "hotel", "motel", "hostel",
     "attraction", "park", "beach",
+    # Mapbox geocoding types
+    "address", "place", "region",
 ]
 
 
@@ -151,6 +152,36 @@ class PlacesPack(BaseModel):
     provider: str
     created_at: str
     algo_version: str
+
+
+# ──────────────────────────────────────────────────────────────
+# Places: corridor + suggest (canon for Explore)
+# ──────────────────────────────────────────────────────────────
+
+class CorridorPlacesRequest(BaseModel):
+    corridor_key: str
+    categories: List[PlaceCategory] = Field(default_factory=list)
+    limit: int = 8000
+
+
+class PlacesSuggestRequest(BaseModel):
+    geometry: str  # polyline6
+    interval_km: int = 50
+    radius_m: int = 15000
+    categories: List[PlaceCategory] = Field(default_factory=list)
+    limit_per_sample: int = 150
+
+
+class PlacesSuggestionCluster(BaseModel):
+    idx: int
+    lat: float
+    lng: float
+    km_from_start: float
+    places: PlacesPack
+
+
+class PlacesSuggestResponse(BaseModel):
+    clusters: List[PlacesSuggestionCluster]
 
 
 # ──────────────────────────────────────────────────────────────

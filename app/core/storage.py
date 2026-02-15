@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from typing import Optional, Tuple
 
 import orjson
@@ -13,6 +14,17 @@ from app.services.places_store import PlacesStore
 # ──────────────────────────────────────────────────────────────
 
 def connect_sqlite(path: str) -> sqlite3.Connection:
+    """
+    Open a RW SQLite connection with sane pragmas.
+
+    IMPORTANT:
+    - SQLite will NOT create parent directories.
+    - WAL mode requires the directory to be writable (creates -wal/-shm).
+    """
+    if path != ":memory:":
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
@@ -20,6 +32,13 @@ def connect_sqlite(path: str) -> sqlite3.Connection:
 
 
 def connect_sqlite_ro(path: str) -> sqlite3.Connection:
+    """
+    Open a read-only SQLite connection.
+
+    Note:
+    - This requires the DB file to already exist.
+    - We intentionally do NOT mkdir here.
+    """
     uri = f"file:{path}?mode=ro"
     conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
     conn.execute("PRAGMA query_only=ON;")

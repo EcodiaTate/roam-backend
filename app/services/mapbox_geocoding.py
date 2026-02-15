@@ -1,0 +1,277 @@
+"""
+Mapbox Geocoding v5 service for Roam place search / autocomplete.
+
+Docs: https://docs.mapbox.com/api/search/geocoding/
+
+This is used for user-facing "search a place by name" queries (the PlaceSearchModal).
+Corridor POI data still uses the Overpass → Supabase pipeline — this is a separate concern.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from datetime import datetime, timezone
+from typing import Any
+
+import httpx
+
+from app.core.contracts import NavCoord, PlaceItem, PlacesPack, PlacesRequest
+from app.core.settings import settings
+
+logger = logging.getLogger(__name__)
+
+# ── Mapbox feature → Roam category mapping ──────────────────────────────
+# Mapbox returns `properties.category` as a comma-separated string for POIs,
+# plus `place_type` which is one of: country, region, postcode, district,
+# place, locality, neighborhood, address, poi, poi.landmark.
+#
+# We map the most useful ones to Roam's PlaceCategory vocabulary.
+
+_MAPBOX_CAT_MAP: dict[str, str] = {
+    "gas station": "fuel",
+    "fuel": "fuel",
+    "petrol": "fuel",
+    "petrol station": "fuel",
+    "restaurant": "restaurant",
+    "cafe": "cafe",
+    "coffee": "cafe",
+    "coffee shop": "cafe",
+    "fast food": "fast_food",
+    "bar": "bar",
+    "pub": "pub",
+    "hotel": "hotel",
+    "motel": "motel",
+    "hostel": "hostel",
+    "lodging": "hotel",
+    "campground": "camp",
+    "camping": "camp",
+    "park": "park",
+    "beach": "beach",
+    "hospital": "hospital",
+    "pharmacy": "pharmacy",
+    "mechanic": "mechanic",
+    "auto repair": "mechanic",
+    "grocery": "grocery",
+    "supermarket": "grocery",
+    "viewpoint": "viewpoint",
+    "attraction": "attraction",
+    "tourist attraction": "attraction",
+    "museum": "attraction",
+    "toilet": "toilet",
+    "rest area": "toilet",
+}
+
+
+def _classify(feature: dict[str, Any]) -> str:
+    """Best-effort category from Mapbox feature → Roam PlaceCategory."""
+    # 1) Check properties.category (comma-separated for POIs)
+    props = feature.get("properties") or {}
+    raw_cats = str(props.get("category") or "").lower()
+    for token in raw_cats.split(","):
+        token = token.strip()
+        if token in _MAPBOX_CAT_MAP:
+            return _MAPBOX_CAT_MAP[token]
+
+    # 2) Fall back to place_type
+    place_types = feature.get("place_type") or []
+    if "poi.landmark" in place_types or "poi" in place_types:
+        return "attraction"
+    if "address" in place_types:
+        return "address"
+    if "place" in place_types or "locality" in place_types:
+        return "town"
+    if "neighborhood" in place_types:
+        return "town"
+    if "region" in place_types or "district" in place_types:
+        return "region"
+
+    return "place"
+
+
+def _feature_to_item(feat: dict[str, Any]) -> PlaceItem | None:
+    """Convert a single Mapbox GeoJSON feature to a Roam PlaceItem."""
+    center = feat.get("center")
+    if not center or len(center) < 2:
+        return None
+
+    lng, lat = float(center[0]), float(center[1])
+    mapbox_id = feat.get("id", "")
+    name = feat.get("text") or feat.get("place_name") or ""
+    place_name = feat.get("place_name") or ""
+
+    # Build a short address from context (suburb, city, state)
+    context = feat.get("context") or []
+    context_parts: list[str] = []
+    for ctx in context:
+        ctx_text = ctx.get("text")
+        if ctx_text:
+            context_parts.append(ctx_text)
+    address = ", ".join(context_parts[:3]) if context_parts else ""
+
+    category = _classify(feat)
+
+    props = feat.get("properties") or {}
+
+    return PlaceItem(
+        id=f"mapbox:{mapbox_id}",
+        name=name,
+        lat=lat,
+        lng=lng,
+        category=category,
+        extra={
+            "source": "mapbox_geocoding",
+            "mapbox_id": mapbox_id,
+            "place_name": place_name,
+            "address": address,
+            "mapbox_category": str(props.get("category") or ""),
+            "place_type": feat.get("place_type") or [],
+            "relevance": feat.get("relevance", 0),
+        },
+    )
+
+
+def _make_places_key(query: str, proximity: tuple[float, float] | None, limit: int) -> str:
+    """Deterministic key for a Mapbox geocode request (for PlacesPack.places_key)."""
+    seed = json.dumps(
+        {
+            "type": "mapbox_geocode",
+            "query": query.strip().lower(),
+            "proximity": list(proximity) if proximity else None,
+            "limit": limit,
+            "algo": settings.places_algo_version,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(seed.encode()).hexdigest()[:24]
+
+
+# ── Allowed Mapbox place types ──────────────────────────────────────────
+# We include all useful types. Omitting "country" and "postcode" because
+# those are rarely what a user typing "Servo near Toowoomba" wants.
+_DEFAULT_TYPES = "poi,poi.landmark,address,place,locality,neighborhood,district,region"
+
+
+class MapboxGeocoding:
+    """Thin wrapper around Mapbox Geocoding v5 forward search."""
+
+    BASE_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places"
+
+    def __init__(self) -> None:
+        self.token: str = settings.mapbox_token
+        self.country: str = settings.mapbox_country
+        if not self.token:
+            raise RuntimeError(
+                "ROAM_MAPBOX_TOKEN is not set. "
+                "Add it to your .env or environment variables."
+            )
+
+    def search(
+        self,
+        query: str,
+        *,
+        proximity: tuple[float, float] | None = None,
+        limit: int = 10,
+        types: str | None = None,
+        bbox: tuple[float, float, float, float] | None = None,
+        language: str = "en",
+    ) -> PlacesPack:
+        """
+        Forward geocode a free-text query → PlacesPack.
+
+        Parameters
+        ----------
+        query : str
+            Free-text search string (e.g. "BP Servo Toowoomba").
+        proximity : (lat, lng) | None
+            Bias results toward this point. Mapbox expects (lng, lat) on the wire —
+            this method accepts (lat, lng) for consistency with the rest of Roam.
+        limit : int
+            Max results (Mapbox allows 1–10, default 5 without paid plan features).
+        types : str | None
+            Comma-separated Mapbox types filter. Defaults to a broad set.
+        bbox : (minLng, minLat, maxLng, maxLat) | None
+            Restrict results to a bounding box.
+        language : str
+            BCP-47 language code.
+        """
+        query = query.strip()
+        if not query:
+            return PlacesPack(
+                places_key="empty",
+                items=[],
+                fetched_at=datetime.now(timezone.utc).isoformat(),
+            )
+
+        limit = max(1, min(limit, 10))  # Mapbox hard-caps at 10
+
+        params: dict[str, str] = {
+            "access_token": self.token,
+            "autocomplete": "true",
+            "language": language,
+            "limit": str(limit),
+            "types": types or _DEFAULT_TYPES,
+        }
+
+        if self.country:
+            params["country"] = self.country
+
+        # Proximity: Roam uses (lat, lng), Mapbox expects "lng,lat"
+        if proximity:
+            lat, lng = proximity
+            params["proximity"] = f"{lng},{lat}"
+
+        if bbox:
+            params["bbox"] = ",".join(str(v) for v in bbox)
+
+        url = f"{self.BASE_URL}/{httpx.URL(query).path if False else ''}"
+        # Mapbox wants the query as a path segment, URL-encoded
+        import urllib.parse
+
+        encoded_query = urllib.parse.quote(query, safe="")
+        url = f"{self.BASE_URL}/{encoded_query}.json"
+
+        logger.info("mapbox_geocode query=%r proximity=%s limit=%d", query, proximity, limit)
+
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                resp = client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "mapbox_geocode_http_error status=%d body=%s",
+                exc.response.status_code,
+                exc.response.text[:500],
+            )
+            raise RuntimeError(f"Mapbox geocoding failed: HTTP {exc.response.status_code}") from exc
+        except httpx.TimeoutException as exc:
+            logger.error("mapbox_geocode_timeout query=%r", query)
+            raise RuntimeError("Mapbox geocoding timed out") from exc
+
+        features = data.get("features") or []
+
+        items: list[PlaceItem] = []
+        for feat in features:
+            item = _feature_to_item(feat)
+            if item:
+                items.append(item)
+
+        places_key = _make_places_key(query, proximity, limit)
+
+        logger.info("mapbox_geocode results=%d key=%s", len(items), places_key)
+
+        return PlacesPack(
+            places_key=places_key,
+            req=PlacesRequest(
+                query=query,
+                center=NavCoord(lat=proximity[0], lng=proximity[1]) if proximity else None,
+                limit=limit,
+            ),
+            items=items,
+            provider="mapbox_geocoding_v5",
+            created_at=datetime.now(timezone.utc).isoformat(),
+            algo_version=settings.places_algo_version,
+        )

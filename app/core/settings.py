@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # OSRM
     osrm_base_url: str = Field(default="http://127.0.0.1:5000", alias="OSRM_BASE_URL")
     osrm_profile: str = Field(default="driving", alias="OSRM_PROFILE")
+    mapbox_token: str = Field(default="", alias="ROAM_MAPBOX_TOKEN")
+    mapbox_country: str = Field(default="au", alias="ROAM_MAPBOX_COUNTRY")
+
+
 
     # Versioning
     algo_version: str = Field(default="navpack.v1.osrm.mld", alias="ALGO_VERSION")

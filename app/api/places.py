@@ -1,14 +1,37 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+import logging
 
-from app.core.contracts import PlacesRequest, PlacesPack, PlaceCategory, BBox4
+from fastapi import APIRouter, Depends
+
+from app.core.contracts import (
+    PlacesRequest,
+    PlacesPack,
+    PlaceCategory,
+    CorridorPlacesRequest,
+    PlacesSuggestRequest,
+    PlacesSuggestResponse,
+)
 from app.core.errors import bad_request, not_found
 from app.services.places import Places
 from app.services.corridor import Corridor
+from app.services.mapbox_geocoding import MapboxGeocoding
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/places")
+
+# ── Lazy singleton for MapboxGeocoding ──────────────────────────────────
+# Created on first use so the app still boots even if the token is missing
+# (corridor/suggest endpoints don't need it).
+_mapbox: MapboxGeocoding | None = None
+
+
+def _get_mapbox() -> MapboxGeocoding:
+    global _mapbox
+    if _mapbox is None:
+        _mapbox = MapboxGeocoding()
+    return _mapbox
 
 
 def get_places_service() -> Places:
@@ -21,16 +44,40 @@ def get_corridor_service() -> Corridor:
 
 @router.post("/search", response_model=PlacesPack)
 def places_search(req: PlacesRequest, places: Places = Depends(get_places_service)) -> PlacesPack:
-    # validation: must have bbox or (center+radius) or query (we allow query-only but it yields empty unless you mapped it)
+    """
+    Dual-mode search:
+      • If `query` is present → Mapbox forward geocoding (autocomplete).
+      • Otherwise (bbox / center+radius) → Overpass tile engine (POI discovery).
+    """
+    # ── Mapbox path: text query autocomplete ────────────────────────────
+    if req.query and req.query.strip():
+        proximity: tuple[float, float] | None = None
+        if req.center:
+            proximity = (req.center.lat, req.center.lng)
+
+        bbox_tuple: tuple[float, float, float, float] | None = None
+        if req.bbox:
+            bbox_tuple = (req.bbox.minLng, req.bbox.minLat, req.bbox.maxLng, req.bbox.maxLat)
+
+        limit = min(req.limit or 10, 10)  # Mapbox caps at 10
+
+        try:
+            mapbox = _get_mapbox()
+            return mapbox.search(
+                query=req.query.strip(),
+                proximity=proximity,
+                limit=limit,
+                bbox=bbox_tuple,
+            )
+        except RuntimeError as exc:
+            logger.error("mapbox_search_failed: %s — falling back to overpass", exc)
+            # Fall through to Overpass if Mapbox is down / unconfigured
+
+    # ── Overpass path: bbox / center+radius POI tile search ─────────────
     if not req.bbox and not (req.center and req.radius_m) and not req.query:
         bad_request("bad_places_request", "Provide bbox or center+radius_m or query")
+
     return places.search(req)
-
-
-class CorridorPlacesRequest(BaseModel):
-    corridor_key: str
-    categories: list[PlaceCategory] = Field(default_factory=list)
-    limit: int = 8000
 
 
 @router.post("/corridor", response_model=PlacesPack)
@@ -57,27 +104,6 @@ def places_corridor(
         limit=int(req.limit or 8000),
     )
     return places.search(preq)
-
-
-class PlacesSuggestRequest(BaseModel):
-    geometry: str  # polyline6
-    interval_km: int = 50
-    radius_m: int = 15000
-    categories: list[PlaceCategory] = Field(default_factory=list)
-    limit_per_sample: int = 150
-
-
-class PlacesSuggestionCluster(BaseModel):
-    idx: int
-    lat: float
-    lng: float
-    km_from_start: float
-    places: PlacesPack
-
-
-class PlacesSuggestResponse(BaseModel):
-    # v1 response: list of packs keyed by sample point
-    clusters: list[PlacesSuggestionCluster]
 
 
 @router.post("/suggest", response_model=PlacesSuggestResponse)

@@ -112,8 +112,9 @@ class CorridorGraphPack(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Places (minimal v1)
+# Places
 # ──────────────────────────────────────────────────────────────
+
 PlaceCategory = Literal[
     "fuel", "camp", "water", "toilet", "town",
     "grocery", "mechanic", "hospital", "pharmacy",
@@ -124,6 +125,16 @@ PlaceCategory = Literal[
     "attraction", "park", "beach",
     # Mapbox geocoding types
     "address", "place", "region",
+     "waterfall",
+    "swimming_hole",
+    "national_park",
+    "picnic",
+    "hiking",
+    "museum",
+    "gallery",
+    "zoo",
+    "theme_park",
+    "heritage",
 ]
 
 
@@ -154,15 +165,13 @@ class PlacesPack(BaseModel):
     algo_version: str
 
 
-# ──────────────────────────────────────────────────────────────
-# Places: corridor + suggest (canon for Explore)
-# ──────────────────────────────────────────────────────────────
-
 class CorridorPlacesRequest(BaseModel):
     corridor_key: str
-    categories: List[PlaceCategory] = Field(default_factory=list)
-    limit: int = 8000
-
+    categories: Optional[List[PlaceCategory]] = None
+    limit: Optional[int] = None
+    # ── NEW: route polyline for true corridor search ──
+    geometry: Optional[str] = None          # Polyline6 of the route
+    buffer_km: Optional[float] = 15.0       # Corridor buffer radius in km
 
 class PlacesSuggestRequest(BaseModel):
     geometry: str  # polyline6
@@ -185,7 +194,67 @@ class PlacesSuggestResponse(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Traffic + Hazards overlays (new, clean v1)
+# Guide (LLM-driven companion)
+# ──────────────────────────────────────────────────────────────
+
+GuideToolName = Literal["places_search", "places_corridor", "places_suggest"]
+
+
+class GuideMsg(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class GuideContext(BaseModel):
+    plan_id: Optional[str] = None
+    label: Optional[str] = None
+
+    profile: Optional[str] = None
+    route_key: Optional[str] = None
+    corridor_key: Optional[str] = None
+
+    geometry: Optional[str] = None  # polyline6
+    bbox: Optional[Dict[str, Any]] = None  # BBox4-ish dict
+
+    stops: List[Dict[str, Any]] = Field(default_factory=list)
+
+    manifest_route_key: Optional[str] = None
+    offline_stale: Optional[bool] = None
+
+    traffic_summary: Optional[Dict[str, Any]] = None
+    hazards_summary: Optional[Dict[str, Any]] = None
+
+
+class GuideToolCall(BaseModel):
+    # allow missing id so model output doesn't hard-fail; we fill it server-side
+    id: Optional[str] = None
+    tool: GuideToolName
+    req: Dict[str, Any]
+
+
+class GuideToolResult(BaseModel):
+    id: str
+    tool: GuideToolName
+    ok: bool = True
+    result: Dict[str, Any]
+
+
+class GuideTurnRequest(BaseModel):
+    context: GuideContext
+    thread: List[GuideMsg] = Field(default_factory=list)
+    tool_results: List[GuideToolResult] = Field(default_factory=list)
+    preferred_categories: List[str] = Field(default_factory=list)
+
+
+class GuideTurnResponse(BaseModel):
+    # allow missing assistant text; we fill to "" if absent
+    assistant: str = ""
+    tool_calls: List[GuideToolCall] = Field(default_factory=list)
+    done: bool = False
+
+
+# ──────────────────────────────────────────────────────────────
+# Traffic + Hazards overlays
 # ──────────────────────────────────────────────────────────────
 
 TrafficSeverity = Literal["info", "minor", "moderate", "major", "unknown"]
@@ -199,8 +268,8 @@ GeoJSON = Dict[str, Any]
 
 class TrafficEvent(BaseModel):
     id: str
-    source: str  # e.g. "qldtraffic"
-    feed: str  # e.g. "incidents"
+    source: str
+    feed: str
     type: TrafficType = "unknown"
     severity: TrafficSeverity = "unknown"
     headline: str
@@ -208,7 +277,7 @@ class TrafficEvent(BaseModel):
     url: Optional[str] = None
     last_updated: Optional[str] = None
     geometry: Optional[GeoJSON] = None
-    bbox: Optional[List[float]] = None  # [minLng,minLat,maxLng,maxLat]
+    bbox: Optional[List[float]] = None
     raw: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -224,7 +293,7 @@ class TrafficOverlay(BaseModel):
 
 class HazardEvent(BaseModel):
     id: str
-    source: str  # e.g. "bom_rss_qld", "qld_disaster_cap"
+    source: str
     kind: HazardKind = "unknown"
     severity: HazardSeverity = "unknown"
     title: str

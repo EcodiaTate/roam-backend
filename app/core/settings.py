@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     mapbox_token: str = Field(default="", alias="ROAM_MAPBOX_TOKEN")
     mapbox_country: str = Field(default="au", alias="ROAM_MAPBOX_COUNTRY")
 
-
-
     # Versioning
     algo_version: str = Field(default="navpack.v1.osrm.mld", alias="ALGO_VERSION")
     corridor_algo_version: str = Field(default="corridor.v1.edgesqlite", alias="CORRIDOR_ALGO_VERSION")
@@ -78,11 +76,9 @@ class Settings(BaseSettings):
         alias="QLDTRAFFIC_EVENTS_DELTA_URL",
     )
 
-    # In-process upstream throttling/merge cache (not the SQLite pack cache)
     qldtraffic_cache_seconds: int = Field(default=60, alias="QLDTRAFFIC_CACHE_SECONDS")
     qldtraffic_full_refresh_seconds: int = Field(default=900, alias="QLDTRAFFIC_FULL_REFRESH_SECONDS")
 
-    # Drop events that ended more than N hours ago (0 disables dropping)
     traffic_include_past_hours: int = Field(default=6, alias="NAV_TRAFFIC_INCLUDE_PAST_HOURS")
 
     # ──────────────────────────────────────────────────────────
@@ -104,15 +100,20 @@ class Settings(BaseSettings):
         alias="QLD_EMERGENCY_ALERTS_URL",
     )
 
-    # ──────────────────────────────────────────────────────────
-    # Back-compat (optional): old per-feed GeoJSON URLs
-    # Keep these ONLY if anything else still references them.
-    # ──────────────────────────────────────────────────────────
-
+    # Back-compat (optional)
     qldtraffic_incidents_url: str | None = Field(default=None, alias="QLDTRAFFIC_INCIDENTS_URL")
     qldtraffic_roadworks_url: str | None = Field(default=None, alias="QLDTRAFFIC_ROADWORKS_URL")
     qldtraffic_closures_url: str | None = Field(default=None, alias="QLDTRAFFIC_CLOSURES_URL")
     qldtraffic_flooding_url: str | None = Field(default=None, alias="QLDTRAFFIC_FLOODING_URL")
+
+    # ──────────────────────────────────────────────────────────
+    # Guide (LLM)
+    # ──────────────────────────────────────────────────────────
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
+    guide_max_steps: int = Field(default=4, alias="GUIDE_MAX_STEPS")
+    guide_timeout_s: float = Field(default=25.0, alias="GUIDE_TIMEOUT_S")
 
 
 settings = Settings()

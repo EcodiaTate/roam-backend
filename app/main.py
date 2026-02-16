@@ -21,10 +21,6 @@ from app.services.places_store import PlacesStore
 
 app = FastAPI(title="Roam Backend", version="1.0.0")
 
-# ──────────────────────────────────────────────────────────────
-# CORS (required for browser fetching /styles and /tiles from localhost:3000)
-# NOTE: PMTiles uses Range requests -> allow Range header + expose Content-Range
-# ──────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
@@ -108,7 +104,7 @@ app.dependency_overrides[bundle_api.get_cache_conn] = provide_cache_conn
 
 # Places
 app.dependency_overrides[places_api.get_places_service] = provide_places_service
-app.dependency_overrides[places_api.get_corridor_service] = provide_corridor_service  # ✅ ADD THIS
+app.dependency_overrides[places_api.get_corridor_service] = provide_corridor_service  #  ADD THIS
 app.dependency_overrides[bundle_api.get_places_service] = provide_places_service
 
 # Routes

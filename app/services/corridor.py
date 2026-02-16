@@ -218,7 +218,7 @@ class Corridor:
         )
         return CorridorEnsureResult(meta=meta, pack=pack)
 
-  # ✅ API-facing method name expected by nav.py
+  #  API-facing method name expected by nav.py
     def get(self, corridor_key: str) -> Optional[CorridorGraphPack]:
         return self.get_corridor_pack(corridor_key)
     

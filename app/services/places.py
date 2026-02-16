@@ -77,17 +77,12 @@ def _bbox_around_points(
 def _min_distance_to_samples_m(
     lat: float, lng: float, samples: List[Tuple[float, float]]
 ) -> float:
-    """
-    Approximate minimum distance (metres) from a point to a set of route
-    sample points.  For densely-sampled polylines (every 5-10 km) this is
-    a good-enough proxy for distance-to-route without segment projection.
-    """
     best = float("inf")
     for s in samples:
         d = _haversine_m((lat, lng), s)
         if d < best:
             best = d
-            if d < 500.0:          # close enough, skip rest
+            if d < 500.0:
                 break
     return best
 
@@ -99,11 +94,6 @@ def _min_distance_to_samples_m(
 def _sample_polyline(
     poly6: str, interval_km: float, *, include_endpoints: bool = True
 ) -> List[Tuple[float, float]]:
-    """
-    Walk along a Polyline6-encoded route and emit (lat, lng) every
-    `interval_km` kilometres.  Always includes first and last point
-    when `include_endpoints` is True.
-    """
     pts = decode_polyline6(poly6)
 
     print(
@@ -122,7 +112,6 @@ def _sample_polyline(
         f"last=({last_pt[0]:.6f},{last_pt[1]:.6f})"
     )
 
-    # Straight-line distance first→last as a sanity check
     straight_m = _haversine_m(
         (float(first_pt[0]), float(first_pt[1])),
         (float(last_pt[0]), float(last_pt[1])),
@@ -144,7 +133,6 @@ def _sample_polyline(
         p1 = (float(pts[i][0]), float(pts[i][1]))
         seg = _haversine_m(p0, p1)
 
-        # Catch NaN — would silently break all subsequent comparisons
         if seg != seg:  # NaN check
             nan_segs += 1
             continue
@@ -174,8 +162,6 @@ def _sample_polyline(
         f"zero_segs={zero_segs}  nan_segs={nan_segs}"
     )
 
-    # Safety: if we have a long route but suspiciously few samples,
-    # fall back to evenly spaced decoded points
     expected_min = max(2, int(dist_acc / 1000.0 / interval_km) - 1)
     if len(samples) < expected_min and dist_acc > interval_m * 2:
         print(
@@ -185,7 +171,6 @@ def _sample_polyline(
         n_want = max(2, int(dist_acc / 1000.0 / interval_km) + 2)
         step = max(1, len(pts) // n_want)
         samples = [(float(pts[j][0]), float(pts[j][1])) for j in range(0, len(pts), step)]
-        # Always include last point
         last = (float(pts[-1][0]), float(pts[-1][1]))
         if _haversine_m(samples[-1], last) > 500.0:
             samples.append(last)
@@ -234,46 +219,193 @@ def _sample_route_points(poly6: str, interval_km: int) -> List[Tuple[int, float,
 # ──────────────────────────────────────────────────────────────
 
 _FALLBACK_FILTERS: Dict[str, List[str]] = {
-    # Essentials
-    "fuel":       ['["amenity"="fuel"]'],
-    "toilet":     ['["amenity"="toilets"]'],
-    "water":      ['["amenity"="drinking_water"]', '["man_made"="water_well"]'],
-    "camp":       ['["tourism"="camp_site"]', '["tourism"="caravan_site"]'],
-    "town":       ['["place"~"^(town|village|city|hamlet)$"]'],
-    "grocery":    ['["shop"="supermarket"]', '["shop"="convenience"]'],
-    "mechanic":   ['["shop"="car_repair"]', '["amenity"="car_repair"]'],
-    "hospital":   ['["amenity"="hospital"]'],
-    "pharmacy":   ['["amenity"="pharmacy"]'],
+    # ── ESSENTIALS & SAFETY ──────────────────────────────────
+    "fuel": [
+        '["amenity"="fuel"]',
+    ],
+    "ev_charging": [
+        '["amenity"="charging_station"]',
+    ],
+    "rest_area": [
+        '["highway"="rest_area"]',
+        '["amenity"="rest_area"]',
+    ],
+    "toilet": [
+        '["amenity"="toilets"]',
+    ],
+    "water": [
+        '["amenity"="drinking_water"]',
+        '["man_made"="water_well"]',
+        '["man_made"="water_tap"]',
+    ],
+    "dump_point": [
+        '["amenity"="sanitary_dump_station"]',
+        '["amenity"="waste_disposal"]["waste"="chemical"]',
+    ],
+    "mechanic": [
+        '["shop"="car_repair"]',
+        '["amenity"="car_repair"]',
+        '["shop"="tyres"]',
+    ],
+    "hospital": [
+        '["amenity"="hospital"]',
+    ],
+    "pharmacy": [
+        '["amenity"="pharmacy"]',
+    ],
 
-    # Food & drink
-    "cafe":       ['["amenity"="cafe"]'],
-    "restaurant": ['["amenity"="restaurant"]'],
-    "fast_food":  ['["amenity"="fast_food"]'],
-    "pub":        ['["amenity"="pub"]'],
-    "bar":        ['["amenity"="bar"]'],
+    # ── SUPPLIES ──────────────────────────────────────────────
+    "grocery": [
+        '["shop"="supermarket"]',
+        '["shop"="convenience"]',
+        '["shop"="general"]',
+    ],
+    "town": [
+        '["place"~"^(city|town|village|hamlet)$"]',
+    ],
+    "atm": [
+        '["amenity"="atm"]',
+        '["amenity"="bank"]',
+    ],
+    "laundromat": [
+        '["shop"="laundry"]',
+        '["amenity"="laundry"]',
+    ],
 
-    # Accommodation
-    "hotel":      ['["tourism"="hotel"]'],
-    "motel":      ['["tourism"="motel"]'],
-    "hostel":     ['["tourism"="hostel"]'],
+    # ── FOOD & DRINK ─────────────────────────────────────────
+    "bakery": [
+        '["shop"="bakery"]',
+    ],
+    "cafe": [
+        '["amenity"="cafe"]',
+    ],
+    "restaurant": [
+        '["amenity"="restaurant"]',
+    ],
+    "fast_food": [
+        '["amenity"="fast_food"]',
+    ],
+    "pub": [
+        '["amenity"="pub"]',
+    ],
+    "bar": [
+        '["amenity"="bar"]',
+    ],
 
-    # Nature & outdoors
-    "viewpoint":      ['["tourism"="viewpoint"]'],
-    "waterfall":      ['["waterway"="waterfall"]'],
-    "swimming_hole":  ['["leisure"="swimming_area"]', '["sport"="swimming"]["natural"]'],
-    "national_park":  ['["boundary"="national_park"]', '["leisure"="nature_reserve"]'],
-    "picnic":         ['["tourism"="picnic_site"]', '["leisure"="picnic_table"]'],
-    "hiking":         ['["highway"="path"]["sac_scale"]', '["route"="hiking"]'],
+    # ── ACCOMMODATION ─────────────────────────────────────────
+    "camp": [
+        '["tourism"="camp_site"]',
+        '["tourism"="caravan_site"]',
+        '["tourism"="camp_pitch"]',
+    ],
+    "hotel": [
+        '["tourism"="hotel"]',
+    ],
+    "motel": [
+        '["tourism"="motel"]',
+    ],
+    "hostel": [
+        '["tourism"="hostel"]',
+    ],
 
-    # Sightseeing
-    "attraction": ['["tourism"="attraction"]'],
-    "park":       ['["leisure"="park"]'],
-    "beach":      ['["natural"="beach"]'],
-    "museum":     ['["tourism"="museum"]'],
-    "gallery":    ['["tourism"="gallery"]'],
-    "zoo":        ['["tourism"="zoo"]'],
-    "theme_park": ['["tourism"="theme_park"]'],
-    "heritage":   ['["heritage"]'],
+    # ── NATURE & OUTDOORS ────────────────────────────────────
+    "viewpoint": [
+        '["tourism"="viewpoint"]',
+    ],
+    "waterfall": [
+        '["waterway"="waterfall"]',
+    ],
+    "swimming_hole": [
+        '["leisure"="swimming_area"]',
+        '["natural"="water"]["sport"="swimming"]',
+        '["leisure"="swimming_pool"]["access"~"^(yes|public)$"]',
+        '["natural"="spring"]["bathing"="yes"]',
+    ],
+    "beach": [
+        '["natural"="beach"]',
+    ],
+    "national_park": [
+        '["boundary"="national_park"]',
+        '["leisure"="nature_reserve"]',
+    ],
+    "hiking": [
+        '["highway"="path"]["foot"="designated"]',
+        '["highway"="path"]["sac_scale"]',
+        '["highway"="footway"]["designation"~"walking_track|bushwalking"]',
+        '["route"="hiking"]',
+        '["route"="foot"]',
+        '["information"="guidepost"]',
+        '["tourism"="information"]["information"="route_marker"]',
+    ],
+    "picnic": [
+        '["tourism"="picnic_site"]',
+        '["leisure"="picnic_table"]',
+        '["amenity"="bbq"]',
+    ],
+    "hot_spring": [
+        '["natural"="hot_spring"]',
+        '["leisure"="hot_spring"]',
+        '["bath:type"="hot_spring"]',
+    ],
+
+    # ── FAMILY & RECREATION ──────────────────────────────────
+    "playground": [
+        '["leisure"="playground"]',
+    ],
+    "pool": [
+        '["leisure"="swimming_pool"]["access"~"^(yes|public)$"]',
+        '["leisure"="water_park"]',
+        '["amenity"="public_bath"]',
+    ],
+    "zoo": [
+        '["tourism"="zoo"]',
+        '["attraction"="animal"]',
+    ],
+    "theme_park": [
+        '["tourism"="theme_park"]',
+        '["leisure"="amusement_arcade"]',
+        '["leisure"="miniature_golf"]',
+    ],
+
+    # ── CULTURE & SIGHTSEEING ────────────────────────────────
+    "visitor_info": [
+        '["tourism"="information"]["information"="office"]',
+        '["tourism"="information"]["information"="visitor_centre"]',
+    ],
+    "museum": [
+        '["tourism"="museum"]',
+    ],
+    "gallery": [
+        '["tourism"="gallery"]',
+    ],
+    "heritage": [
+        '["heritage"]',
+        '["historic"="monument"]',
+        '["historic"="memorial"]',
+        '["historic"="ruins"]',
+    ],
+    "winery": [
+        '["craft"="winery"]',
+        '["tourism"="wine_cellar"]',
+        '["shop"="wine"]',
+    ],
+    "brewery": [
+        '["craft"="brewery"]',
+        '["craft"="distillery"]',
+        '["craft"="cider"]',
+        '["microbrewery"="yes"]',
+    ],
+    "attraction": [
+        '["tourism"="attraction"]',
+    ],
+    "market": [
+        '["amenity"="marketplace"]',
+        '["shop"="farm"]',
+    ],
+    "park": [
+        '["leisure"="park"]',
+        '["leisure"="garden"]',
+    ],
 }
 
 
@@ -300,97 +432,259 @@ def _overpass_filters_for_categories(cats: List[PlaceCategory]) -> List[str]:
     return dedup
 
 
-def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
-    a = tags.get("amenity")
-    t = tags.get("tourism")
-    p = tags.get("place")
-    s = tags.get("shop")
-    mm = tags.get("man_made")
-    le = tags.get("leisure")
-    n = tags.get("natural")
-    w = tags.get("waterway")
-    b = tags.get("boundary")
+# ──────────────────────────────────────────────────────────────
+# Category inference from OSM tags
+# ──────────────────────────────────────────────────────────────
 
-    # Essentials
+def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
+    a = tags.get("amenity", "")
+    t = tags.get("tourism", "")
+    p = tags.get("place", "")
+    s = tags.get("shop", "")
+    mm = tags.get("man_made", "")
+    le = tags.get("leisure", "")
+    n = tags.get("natural", "")
+    w = tags.get("waterway", "")
+    b = tags.get("boundary", "")
+    hw = tags.get("highway", "")
+    cr = tags.get("craft", "")
+    hi = tags.get("historic", "")
+    info = tags.get("information", "")
+
+    # ── ESSENTIALS & SAFETY (highest priority) ───────────────
+
     if a == "fuel":
         return "fuel"
+    if a == "charging_station":
+        return "ev_charging"
+    if hw == "rest_area" or a == "rest_area":
+        return "rest_area"
     if a == "toilets":
         return "toilet"
-    if a == "drinking_water" or mm == "water_well":
+    if a == "drinking_water" or mm in ("water_well", "water_tap"):
         return "water"
-    if t in ("camp_site", "caravan_site"):
-        return "camp"
-    if p in ("city", "town", "village", "hamlet"):
-        return "town"
-    if s in ("supermarket", "convenience"):
-        return "grocery"
-    if s == "car_repair" or a == "car_repair":
+    if a == "sanitary_dump_station":
+        return "dump_point"
+    if s == "car_repair" or a == "car_repair" or s == "tyres":
         return "mechanic"
     if a == "hospital":
         return "hospital"
     if a == "pharmacy":
         return "pharmacy"
 
-    # Nature & outdoors (BEFORE generic attraction)
+    # ── SUPPLIES ──────────────────────────────────────────────
+
+    if s in ("supermarket", "convenience", "general"):
+        return "grocery"
+    if a == "atm" or a == "bank":
+        return "atm"
+    if s == "laundry" or a == "laundry":
+        return "laundromat"
+
+    # ── FOOD & DRINK ─────────────────────────────────────────
+
+    if s == "bakery":
+        return "bakery"
+    if a == "cafe":
+        return "cafe"
+    if a == "restaurant":
+        return "restaurant"
+    if a == "fast_food":
+        return "fast_food"
+    if a == "pub":
+        return "pub"
+    if a == "bar":
+        return "bar"
+
+    # ── ACCOMMODATION ─────────────────────────────────────────
+
+    if t in ("camp_site", "caravan_site", "camp_pitch"):
+        return "camp"
+    if t == "motel":
+        return "motel"
+    if t == "hotel":
+        return "hotel"
+    if t == "hostel":
+        return "hostel"
+
+    # ── NATURE & OUTDOORS (before generic attraction) ────────
+
     if w == "waterfall":
-        return "waterfall"  # type: ignore
-    if le == "swimming_area" or (tags.get("sport") == "swimming" and n):
-        return "swimming_hole"  # type: ignore
+        return "waterfall"
+    if n == "hot_spring" or le == "hot_spring" or tags.get("bath:type") == "hot_spring":
+        return "hot_spring"
+    if le == "swimming_area" or (tags.get("sport") == "swimming" and n) or (n == "spring" and tags.get("bathing") == "yes"):
+        return "swimming_hole"
+    if n == "beach":
+        return "beach"
     if b == "national_park" or le == "nature_reserve":
-        return "national_park"  # type: ignore
-    if t == "picnic_site" or le == "picnic_table":
-        return "picnic"  # type: ignore
-    if tags.get("route") == "hiking" or (tags.get("highway") == "path" and tags.get("sac_scale")):
-        return "hiking"  # type: ignore
+        return "national_park"
     if t == "viewpoint":
         return "viewpoint"
-    if n == "beach":
-        return "beach"  # type: ignore
-    if le == "park":
-        return "park"  # type: ignore
+    if t == "picnic_site" or le == "picnic_table" or a == "bbq":
+        return "picnic"
+    if (
+        tags.get("route") in ("hiking", "foot")
+        or (hw == "path" and tags.get("sac_scale"))
+        or (hw == "path" and tags.get("foot") == "designated")
+        or info == "guidepost"
+        or (t == "information" and info == "route_marker")
+    ):
+        return "hiking"
 
-    # Food & drink
-    if a == "cafe":
-        return "cafe"  # type: ignore
-    if a == "restaurant":
-        return "restaurant"  # type: ignore
-    if a == "fast_food":
-        return "fast_food"  # type: ignore
-    if a == "pub":
-        return "pub"  # type: ignore
-    if a == "bar":
-        return "bar"  # type: ignore
+    # ── FAMILY & RECREATION ──────────────────────────────────
 
-    # Accommodation
-    if t == "hotel":
-        return "hotel"  # type: ignore
-    if t == "motel":
-        return "motel"  # type: ignore
-    if t == "hostel":
-        return "hostel"  # type: ignore
+    if le == "playground":
+        return "playground"
+    if le in ("swimming_pool", "water_park") or a == "public_bath":
+        return "pool"
+    if t == "zoo" or tags.get("attraction") == "animal":
+        return "zoo"
+    if t == "theme_park" or le in ("amusement_arcade", "miniature_golf"):
+        return "theme_park"
 
-    # Sightseeing (last — broadest bucket)
+    # ── CULTURE & SIGHTSEEING ────────────────────────────────
+
+    if t == "information" and info in ("office", "visitor_centre"):
+        return "visitor_info"
+    if cr == "winery" or t == "wine_cellar" or s == "wine":
+        return "winery"
+    if cr in ("brewery", "distillery", "cider") or tags.get("microbrewery") == "yes":
+        return "brewery"
     if t == "museum":
-        return "museum"  # type: ignore
+        return "museum"
     if t == "gallery":
-        return "gallery"  # type: ignore
-    if t == "zoo":
-        return "zoo"  # type: ignore
-    if t == "theme_park":
-        return "theme_park"  # type: ignore
-    if tags.get("heritage"):
-        return "heritage"  # type: ignore
+        return "gallery"
+    if tags.get("heritage") or hi in ("monument", "memorial", "ruins"):
+        return "heritage"
+    if a == "marketplace" or s == "farm":
+        return "market"
+    if le in ("park", "garden"):
+        return "park"
     if t == "attraction":
-        return "attraction"  # type: ignore
+        return "attraction"
+
+    # ── ANCHOR POINTS ────────────────────────────────────────
+
+    if p in ("city", "town", "village", "hamlet"):
+        return "town"
 
     return "town"
 
 
+# ──────────────────────────────────────────────────────────────
+# Synthetic name generation for nameless OSM features
+# ──────────────────────────────────────────────────────────────
+
+_CATEGORY_LABELS: Dict[str, str] = {
+    "fuel": "Fuel Station",
+    "ev_charging": "EV Charger",
+    "rest_area": "Rest Area",
+    "toilet": "Public Toilet",
+    "water": "Drinking Water",
+    "dump_point": "Dump Point",
+    "mechanic": "Mechanic",
+    "hospital": "Hospital",
+    "pharmacy": "Pharmacy",
+    "grocery": "Grocery",
+    "town": "Town",
+    "atm": "ATM",
+    "laundromat": "Laundromat",
+    "bakery": "Bakery",
+    "cafe": "Café",
+    "restaurant": "Restaurant",
+    "fast_food": "Fast Food",
+    "pub": "Pub",
+    "bar": "Bar",
+    "camp": "Campground",
+    "hotel": "Hotel",
+    "motel": "Motel",
+    "hostel": "Hostel",
+    "viewpoint": "Viewpoint",
+    "waterfall": "Waterfall",
+    "swimming_hole": "Swimming Hole",
+    "beach": "Beach",
+    "national_park": "National Park",
+    "hiking": "Walking Track",
+    "picnic": "Picnic Area",
+    "hot_spring": "Hot Spring",
+    "playground": "Playground",
+    "pool": "Swimming Pool",
+    "zoo": "Zoo",
+    "theme_park": "Theme Park",
+    "visitor_info": "Visitor Info",
+    "museum": "Museum",
+    "gallery": "Gallery",
+    "heritage": "Heritage Site",
+    "winery": "Winery",
+    "brewery": "Brewery",
+    "attraction": "Attraction",
+    "market": "Market",
+    "park": "Park",
+}
+
+
+def _synthetic_name(
+    category: str,
+    tags: Dict[str, Any],
+    lat: float,
+    lon: float,
+) -> str:
+    base = _CATEGORY_LABELS.get(category, category.replace("_", " ").title())
+
+    locality = (
+        tags.get("addr:suburb")
+        or tags.get("addr:city")
+        or tags.get("addr:state")
+    )
+    street = tags.get("addr:street")
+
+    if category == "picnic":
+        if tags.get("amenity") == "bbq":
+            base = "BBQ"
+        elif tags.get("leisure") == "picnic_table":
+            base = "Picnic Table"
+    elif category == "water":
+        if tags.get("man_made") == "water_well":
+            base = "Water Well"
+        elif tags.get("man_made") == "water_tap":
+            base = "Water Tap"
+    elif category == "camp":
+        if tags.get("tourism") == "caravan_site":
+            base = "Caravan Park"
+        elif tags.get("tourism") == "camp_pitch":
+            base = "Camp Pitch"
+        if tags.get("fee") == "no":
+            base = f"Free {base}"
+    elif category == "hiking":
+        if tags.get("route") in ("hiking", "foot"):
+            base = "Walking Trail"
+        elif tags.get("information") == "guidepost":
+            base = "Trail Marker"
+    elif category == "heritage":
+        ht = tags.get("historic", "")
+        if ht == "monument":
+            base = "Monument"
+        elif ht == "memorial":
+            base = "Memorial"
+        elif ht == "ruins":
+            base = "Ruins"
+    elif category == "toilet":
+        if tags.get("access") == "customers":
+            base = "Customer Toilet"
+        if tags.get("wheelchair") == "yes":
+            base = f"{base} (Accessible)"
+
+    if locality:
+        return f"{base} — {locality}"
+    elif street:
+        return f"{base} — {street}"
+    else:
+        return base
+
+
 def _element_to_item(el: Dict[str, Any]) -> Optional[PlaceItem]:
     tags = el.get("tags") or {}
-    name = tags.get("name") or tags.get("brand") or tags.get("operator")
-    if not name:
-        return None
 
     lat = el.get("lat")
     lon = el.get("lon")
@@ -408,16 +702,74 @@ def _element_to_item(el: Dict[str, Any]) -> Optional[PlaceItem]:
     if osm_id is None:
         return None
 
-    extra = dict(tags)
-    extra["osm_type"] = osm_type
-    extra["osm_id"] = osm_id
+    category = _infer_category(tags)
+
+    name = (
+        tags.get("name")
+        or tags.get("brand")
+        or tags.get("operator")
+        or tags.get("description")
+        or tags.get("loc_name")
+        or tags.get("alt_name")
+        or tags.get("ref")
+    )
+
+    if not name:
+        name = _synthetic_name(category, tags, lat, lon)
+
+    extra: Dict[str, Any] = {"osm_type": osm_type, "osm_id": osm_id}
+
+    for k in ("phone", "contact:phone", "website", "contact:website",
+              "opening_hours", "fee", "access", "capacity",
+              "brand", "operator", "description"):
+        v = tags.get(k)
+        if v:
+            clean_k = k.replace("contact:", "")
+            extra[clean_k] = str(v)[:200]
+
+    addr_parts = []
+    for ak in ("addr:housenumber", "addr:street", "addr:suburb",
+                "addr:city", "addr:state", "addr:postcode"):
+        av = tags.get(ak)
+        if av:
+            addr_parts.append(str(av))
+    if addr_parts:
+        extra["address"] = ", ".join(addr_parts)
+
+    fuel_types = []
+    for fk in ("fuel:diesel", "fuel:octane_91", "fuel:octane_95",
+                "fuel:octane_98", "fuel:lpg", "fuel:adblue"):
+        if tags.get(fk) == "yes":
+            fuel_types.append(fk.replace("fuel:", ""))
+    if fuel_types:
+        extra["fuel_types"] = fuel_types
+
+    socket_types = []
+    for sk in ("socket:type2", "socket:type2_combo", "socket:chademo",
+                "socket:tesla_supercharger", "socket:type1"):
+        if tags.get(sk):
+            socket_types.append(sk.replace("socket:", ""))
+    if socket_types:
+        extra["socket_types"] = socket_types
+
+    if tags.get("fee") == "no":
+        extra["free"] = True
+    if tags.get("power_supply") == "yes":
+        extra["powered_sites"] = True
+    if tags.get("drinking_water") == "yes":
+        extra["has_water"] = True
+    if tags.get("toilets") == "yes" or tags.get("amenity") == "toilets":
+        extra["has_toilets"] = True
+
+    if not (tags.get("name") or tags.get("brand") or tags.get("operator")):
+        extra["synthetic_name"] = True
 
     return PlaceItem(
         id=f"osm:{osm_type}:{osm_id}",
         name=str(name),
         lat=float(lat),
         lng=float(lon),
-        category=_infer_category(tags),
+        category=category,
         extra=extra,
     )
 
@@ -462,18 +814,9 @@ def _build_overpass_around_ql(
     name_clause: str,
     max_coords: int = 120,
 ) -> str:
-    """
-    Build an Overpass QL query using the ``around`` filter so results
-    follow the actual route polyline instead of a rectangular bbox.
-
-    ``coords`` are (lat, lng) sample points along the route.
-    ``radius_m`` is the corridor buffer in metres.
-    ``max_coords`` caps coordinate count to avoid query-length issues.
-    """
     if len(coords) > max_coords:
         step = max(1, len(coords) // max_coords)
         coords = coords[::step]
-        # always include last point
         if coords[-1] != coords[-1]:
             coords.append(coords[-1])
 
@@ -545,11 +888,6 @@ def _corridor_places_key(
     limit: int,
     algo_version: str,
 ) -> str:
-    """
-    Deterministic cache key for a corridor-polyline places query.
-    Uses a SHA-256 of the polyline + params so the same route always
-    resolves to the same cache entry.
-    """
     cats_str = ",".join(sorted(categories))
     raw = (
         f"CorridorPlaces/v1|"
@@ -566,25 +904,31 @@ def _corridor_places_key(
 
 class Places:
     """
-    Places service (GLOBAL POOLING + LOCAL HOT CACHE):
+    Places service — OVERPASS-FIRST corridor search.
 
-    Read order:
-      0) Deterministic PlacesPack cache (places_packs)
-      1) Local canonical store (PlacesStore)
-      2) Supabase canonical store (roam_places_items)
-      3) Overpass top-up (tile-based or around-based, time-budgeted)
+    For corridor searches (search_corridor_polyline), the read order is:
+      1) Overpass around query (distributed along the actual route)
+      2) Local store supplement (fill gaps)
+      3) Supa supplement (fill gaps)
 
-    Write-behind:
-      - Overpass discoveries are inserted into local store and published to Supabase (best-effort).
-      - Supabase hits are ingested into local store (hot cache).
-      - Pack-level backfill: if pack served from local/cache, still publish (capped) so global pool converges.
+    This ensures the full route gets coverage from start to end,
+    instead of being dominated by destination-area items that were
+    cached by previous bbox-based searches.
+
+    For regular bbox searches (.search()), the order remains:
+      1) Local store
+      2) Supa
+      3) Overpass tile top-up
     """
 
     def __init__(
         self,
         *,
         cache_conn,
-        algo_version: str = "places.v1.overpass.tiled",
+        # ── BUMPED from places.v2.expanded to v3 ──────────────
+        # This invalidates all stale corridor packs that were built
+        # with the old local-first ordering (destination-biased).
+        algo_version: str = "places.v3.overpass_first",
         store: PlacesStore | None = None,
     ):
         self.cache_conn = cache_conn
@@ -624,11 +968,6 @@ class Places:
             print(f"[PlacesStore] ingest from supa FAILED: {repr(e)}")
 
     def _finalize_and_cache_pack(self, pack: PlacesPack, *, publish_to_supa: bool) -> PlacesPack:
-        """
-        Single exit point:
-          - optional: publish pack items to Supa (capped)
-          - always: write deterministic pack cache
-        """
         if publish_to_supa and self.supa is not None and pack.items:
             cap = int(getattr(settings, "supa_places_publish_cap", 4000))
             cap = max(0, cap)
@@ -645,7 +984,13 @@ class Places:
         return pack
 
     # ──────────────────────────────────────────────────────────
-    # Corridor-aware route search (NEW)
+    # Corridor-aware route search — OVERPASS FIRST
+    # ──────────────────────────────────────────────────────────
+    #
+    # The critical change from v2: Overpass runs FIRST, then
+    # local/supa supplement.  Previously local ran first and if it
+    # had enough destination-area items (>70% of limit), Overpass
+    # was skipped — meaning start and mid-route got nothing.
     # ──────────────────────────────────────────────────────────
 
     def search_corridor_polyline(
@@ -657,20 +1002,6 @@ class Places:
         limit: int = 8000,
         sample_interval_km: float = 8.0,
     ) -> PlacesPack:
-        """
-        Query places inside a true corridor buffer around the route
-        polyline — not a start-to-end rectangle.
-
-        Strategy:
-        1. Sample (lat,lng) every ``sample_interval_km`` along the polyline.
-        2. Build an enclosing bbox (for local-store / Supa rect queries),
-           then post-filter results by distance-to-route.
-        3. If local+supa don't satisfy the limit, issue a SINGLE Overpass
-           ``around`` query using the sampled coordinates + ``buffer_km``
-           radius.  This tells Overpass to search along the actual road
-           shape instead of a giant rectangle.
-        4. Deduplicate, cache, return.
-        """
         cats_str = [str(c) for c in categories]
 
         print(
@@ -692,7 +1023,11 @@ class Places:
         cached = get_places_pack(self.cache_conn, pkey)
         if cached:
             pack = PlacesPack.model_validate(cached)
-            # Best-effort Supa migration for old cached packs
+            print(
+                f"[Places] corridor cache HIT: key={pkey[:16]}… "
+                f"items={len(pack.items)} provider={pack.provider}"
+            )
+            # Migrate to supa if needed (best-effort)
             migrate_cached = bool(getattr(settings, "supa_places_publish_cached_packs", True))
             if (
                 migrate_cached
@@ -705,11 +1040,14 @@ class Places:
                 self._supa_upsert_best_effort(subset, source="cached_pack")
             return pack
 
+        print(f"[Places] corridor cache MISS — running full pipeline")
+
         # ── 1) Sample route ──────────────────────────────────
         samples = _sample_polyline(
             polyline6, sample_interval_km, include_endpoints=True,
         )
         if not samples:
+            print("[Places] corridor: no samples from polyline — returning empty")
             empty_req = PlacesRequest(
                 bbox=BBox4(minLng=0, minLat=0, maxLng=0, maxLat=0),
                 categories=categories,
@@ -732,32 +1070,118 @@ class Places:
         seen_ids: set[str] = set()
 
         def _accept(it: PlaceItem) -> bool:
-            """Return True if item is within buffer of the route."""
             if it.id in seen_ids:
                 return False
             d = _min_distance_to_samples_m(it.lat, it.lng, samples)
             return d <= buffer_m
 
-        # ── 2) Local store ───────────────────────────────────
+        # ──────────────────────────────────────────────────────
+        # STEP 2: OVERPASS AROUND QUERY — RUNS FIRST
+        # ──────────────────────────────────────────────────────
+        # This is the whole point of corridor search: query a true
+        # buffer along the actual road, from start to end.  Running
+        # this first ensures every stretch of the route gets coverage
+        # regardless of what's in the local store.
+        # ──────────────────────────────────────────────────────
+
         provider_used = "corridor"
-        try:
-            local_items = self.store.query_bbox(
-                bbox=corridor_bbox, categories=categories, limit=limit * 2,
+        overpass_items_total = 0
+        used_overpass = False
+
+        filters = _overpass_filters_for_categories(categories)
+        if filters or categories:
+            ql = _build_overpass_around_ql(
+                coords=samples,
+                radius_m=buffer_m,
+                filters=filters,
+                name_clause="",
             )
-        except Exception as e:
-            print(f"[PlacesStore] corridor query_bbox FAILED: {repr(e)}")
-            local_items = []
 
-        for it in local_items:
-            if _accept(it):
-                seen_ids.add(it.id)
-                items.append(it)
-                if len(items) >= limit:
-                    break
+            print(
+                f"[Places] corridor Overpass around query: "
+                f"samples={len(samples)}  radius_m={buffer_m}  "
+                f"filters={len(filters)}  ql_len={len(ql)}"
+            )
 
-        local_count = len(items)
+            timeout_s = float(getattr(settings, "overpass_timeout_s", 90))
+            timeout = httpx.Timeout(timeout_s, connect=15.0)
 
-        # ── 3) Supa read-through ─────────────────────────────
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    data = _fetch_overpass_with_retries(client=client, ql=ql)
+
+                fetched: List[PlaceItem] = []
+                for el in data.get("elements") or []:
+                    it = _element_to_item(el)
+                    if it is not None:
+                        fetched.append(it)
+
+                overpass_items_total = len(fetched)
+                print(
+                    f"[Places] corridor Overpass returned: "
+                    f"raw_elements={len(data.get('elements') or [])}  "
+                    f"parsed_items={overpass_items_total}"
+                )
+
+                if fetched:
+                    used_overpass = True
+
+                    # Persist to local store for future queries
+                    try:
+                        self.store.upsert_items(fetched)
+                    except Exception as e:
+                        print(f"[PlacesStore] corridor upsert FAILED: {repr(e)}")
+
+                    # Publish to supa (best-effort)
+                    self._supa_upsert_best_effort(fetched, source="overpass_corridor")
+
+                    # Accept items within the corridor buffer
+                    for it in fetched:
+                        if _accept(it):
+                            seen_ids.add(it.id)
+                            items.append(it)
+                            if len(items) >= limit:
+                                break
+
+                    print(
+                        f"[Places] corridor after Overpass: "
+                        f"accepted={len(items)}/{overpass_items_total}"
+                    )
+
+            except Exception as e:
+                print(f"[Places] corridor Overpass FAILED: {repr(e)}")
+
+        # ──────────────────────────────────────────────────────
+        # STEP 3: LOCAL STORE SUPPLEMENT
+        # ──────────────────────────────────────────────────────
+        # Now fill gaps with whatever's already in the local store.
+        # Items already seen from Overpass are deduplicated.
+        # ──────────────────────────────────────────────────────
+
+        local_count = 0
+        if len(items) < limit:
+            try:
+                local_items = self.store.query_bbox(
+                    bbox=corridor_bbox, categories=categories, limit=limit * 2,
+                )
+            except Exception as e:
+                print(f"[PlacesStore] corridor query_bbox FAILED: {repr(e)}")
+                local_items = []
+
+            for it in local_items:
+                if _accept(it):
+                    seen_ids.add(it.id)
+                    items.append(it)
+                    local_count += 1
+                    if len(items) >= limit:
+                        break
+
+            print(f"[Places] corridor after local supplement: +{local_count} → total={len(items)}")
+
+        # ──────────────────────────────────────────────────────
+        # STEP 4: SUPA SUPPLEMENT
+        # ──────────────────────────────────────────────────────
+
         supa_hit = 0
         if self.supa is not None and len(items) < limit:
             try:
@@ -777,61 +1201,6 @@ class Places:
             except Exception as e:
                 print(f"[SupaPlacesRepo] corridor query_bbox FAILED: {repr(e)}")
 
-        # ── 4) Overpass around query ─────────────────────────
-        min_ratio = float(getattr(settings, "places_local_satisfy_ratio", 0.70))
-        need_count = max(1, int(limit * min_ratio))
-
-        used_overpass = False
-        overpass_items_total = 0
-
-        if len(items) < need_count:
-            filters = _overpass_filters_for_categories(categories)
-            if filters or categories:
-                # Build a single corridor-aware Overpass query
-                ql = _build_overpass_around_ql(
-                    coords=samples,
-                    radius_m=buffer_m,
-                    filters=filters,
-                    name_clause="",
-                )
-
-                timeout_s = float(getattr(settings, "overpass_timeout_s", 90))
-                timeout = httpx.Timeout(timeout_s, connect=15.0)
-
-                try:
-                    with httpx.Client(timeout=timeout) as client:
-                        data = _fetch_overpass_with_retries(client=client, ql=ql)
-
-                    fetched: List[PlaceItem] = []
-                    for el in data.get("elements") or []:
-                        it = _element_to_item(el)
-                        if it is not None:
-                            fetched.append(it)
-
-                    if fetched:
-                        used_overpass = True
-                        overpass_items_total = len(fetched)
-
-                        # Persist into local store
-                        try:
-                            self.store.upsert_items(fetched)
-                        except Exception as e:
-                            print(f"[PlacesStore] corridor upsert FAILED: {repr(e)}")
-
-                        # Publish to Supa
-                        self._supa_upsert_best_effort(fetched, source="overpass_corridor")
-
-                        # Merge into result set (already distance-filtered by Overpass around)
-                        for it in fetched:
-                            if it.id not in seen_ids:
-                                seen_ids.add(it.id)
-                                items.append(it)
-                                if len(items) >= limit:
-                                    break
-
-                except Exception as e:
-                    print(f"[Places] corridor overpass FAILED: {repr(e)}")
-
         # ── 5) Finalize ──────────────────────────────────────
         if used_overpass:
             provider_used = (
@@ -841,16 +1210,15 @@ class Places:
             )
 
         print(
-            "[Places] corridor_polyline summary:",
+            "[Places] corridor_polyline FINAL summary:",
             f"provider={provider_used}",
             f"samples={len(samples)}",
-            f"local={local_count}",
-            f"supa_hit={supa_hit}",
-            f"overpass_items={overpass_items_total}",
+            f"overpass_raw={overpass_items_total}",
+            f"local_supplement={local_count}",
+            f"supa_supplement={supa_hit}",
             f"total={len(items)}",
         )
 
-        # Build a synthetic PlacesRequest for pack serialization
         corridor_req = PlacesRequest(
             bbox=corridor_bbox,
             categories=categories,
@@ -875,7 +1243,6 @@ class Places:
     def search(self, req: PlacesRequest) -> PlacesPack:
         pkey = places_key(req.model_dump(), self.algo_version)
 
-        # 0) deterministic pack cache
         cached = get_places_pack(self.cache_conn, pkey)
         if cached:
             pack = PlacesPack.model_validate(cached)
@@ -936,7 +1303,7 @@ class Places:
             )
             return self._finalize_and_cache_pack(pack, publish_to_supa=True)
 
-        # 2) Supabase read-through (shared)
+        # 2) Supabase read-through
         provider_used = "local"
         supa_hit = 0
         if self.supa is not None:
@@ -969,7 +1336,7 @@ class Places:
             )
             return self._finalize_and_cache_pack(pack, publish_to_supa=("supa" not in provider_used))
 
-        # 3) Overpass top-up (tile-based for bbox queries)
+        # 3) Overpass top-up
         filters = _overpass_filters_for_categories(cats)
         name_clause = ""
         if req.query:
@@ -1107,7 +1474,7 @@ class Places:
         return self._finalize_and_cache_pack(pack, publish_to_supa=True)
 
     # ──────────────────────────────────────────────────────────
-    # Suggest along route (uses corridor polyline search now)
+    # Suggest along route
     # ──────────────────────────────────────────────────────────
 
     def suggest_along_route(

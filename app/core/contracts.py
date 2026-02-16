@@ -112,29 +112,95 @@ class CorridorGraphPack(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Places
+# Places — category taxonomy
+# ──────────────────────────────────────────────────────────────
+# Every category MUST map to at least one Overpass filter in
+# places.py _FALLBACK_FILTERS.  Grouped by traveller need.
+#
+# ESSENTIALS & SAFETY — the "survive the outback" tier
+#   fuel          Petrol/diesel stations
+#   ev_charging   Electric vehicle charge points
+#   rest_area     Roadside rest stops / driver reviver (fatigue!)
+#   toilet        Public toilets (standalone, not inside a venue)
+#   water         Drinking water taps, tanks, bores
+#   dump_point    Caravan/RV waste dump stations
+#   mechanic      Car repair, tyre shops, NRMA/RACQ
+#   hospital      Hospitals & emergency departments
+#   pharmacy      Chemists
+#
+# SUPPLIES
+#   grocery       Supermarkets, IGA, convenience stores
+#   town          Towns, villages, hamlets (anchor points)
+#   atm           ATMs & bank branches (cash-only outback shops)
+#   laundromat    Laundromats / coin laundry (multi-day trips)
+#
+# FOOD & DRINK
+#   bakery        Bakeries (THE Aussie road trip stop — pies!)
+#   cafe          Cafés & coffee shops
+#   restaurant    Sit-down restaurants
+#   fast_food     Fast food / takeaway
+#   pub           Pubs & taverns (counter meals)
+#   bar           Bars & cocktail lounges
+#
+# ACCOMMODATION
+#   camp          Camp sites, caravan parks, free camps
+#   hotel         Hotels
+#   motel         Motels (roadside, quintessential road trip)
+#   hostel        Hostels / backpackers
+#
+# NATURE & OUTDOORS
+#   viewpoint     Lookouts & scenic viewpoints
+#   waterfall     Waterfalls
+#   swimming_hole Natural swimming holes & rock pools
+#   beach         Beaches
+#   national_park National parks & nature reserves
+#   hiking        Walking tracks, trails, trailheads
+#   picnic        Picnic areas, BBQ spots, shelters
+#   hot_spring    Hot springs & thermal pools
+#
+# FAMILY & RECREATION
+#   playground    Playgrounds & skate parks
+#   pool          Public swimming pools & aquatic centres
+#   zoo           Zoos, wildlife parks, sanctuaries
+#   theme_park    Theme parks, water parks, mini golf
+#
+# CULTURE & SIGHTSEEING
+#   visitor_info  Visitor information centres / i-sites
+#   museum        Museums
+#   gallery       Art galleries
+#   heritage      Heritage-listed sites, historic buildings
+#   winery        Wineries & cellar doors
+#   brewery       Breweries, distilleries, cideries
+#   attraction    Generic tourist attractions, "Big Things"
+#   market        Markets (farmers, craft, weekend)
+#   park          Urban parks & gardens
+#
+# GEOCODING (from Mapbox forward search — not Overpass)
+#   address       Street address result
+#   place         Named place / locality result
+#   region        State / territory result
 # ──────────────────────────────────────────────────────────────
 
 PlaceCategory = Literal[
-    "fuel", "camp", "water", "toilet", "town",
-    "grocery", "mechanic", "hospital", "pharmacy",
-    "viewpoint",
-    "cafe", "restaurant", "fast_food",
-    "pub", "bar",
-    "hotel", "motel", "hostel",
-    "attraction", "park", "beach",
-    # Mapbox geocoding types
+    # Essentials & safety
+    "fuel", "ev_charging", "rest_area", "toilet", "water",
+    "dump_point", "mechanic", "hospital", "pharmacy",
+    # Supplies
+    "grocery", "town", "atm", "laundromat",
+    # Food & drink
+    "bakery", "cafe", "restaurant", "fast_food", "pub", "bar",
+    # Accommodation
+    "camp", "hotel", "motel", "hostel",
+    # Nature & outdoors
+    "viewpoint", "waterfall", "swimming_hole", "beach",
+    "national_park", "hiking", "picnic", "hot_spring",
+    # Family & recreation
+    "playground", "pool", "zoo", "theme_park",
+    # Culture & sightseeing
+    "visitor_info", "museum", "gallery", "heritage",
+    "winery", "brewery", "attraction", "market", "park",
+    # Geocoding (Mapbox)
     "address", "place", "region",
-     "waterfall",
-    "swimming_hole",
-    "national_park",
-    "picnic",
-    "hiking",
-    "museum",
-    "gallery",
-    "zoo",
-    "theme_park",
-    "heritage",
 ]
 
 
@@ -169,9 +235,10 @@ class CorridorPlacesRequest(BaseModel):
     corridor_key: str
     categories: Optional[List[PlaceCategory]] = None
     limit: Optional[int] = None
-    # ── NEW: route polyline for true corridor search ──
+    # Route polyline for true corridor search
     geometry: Optional[str] = None          # Polyline6 of the route
     buffer_km: Optional[float] = 15.0       # Corridor buffer radius in km
+
 
 class PlacesSuggestRequest(BaseModel):
     geometry: str  # polyline6
@@ -198,11 +265,52 @@ class PlacesSuggestResponse(BaseModel):
 # ──────────────────────────────────────────────────────────────
 
 GuideToolName = Literal["places_search", "places_corridor", "places_suggest"]
+GuideActionType = Literal["web", "call"]
 
 
 class GuideMsg(BaseModel):
     role: Literal["user", "assistant"]
     content: str
+
+
+class TripProgress(BaseModel):
+    """Live position + progress telemetry sent from frontend."""
+    user_lat: float
+    user_lng: float
+    user_accuracy_m: float = 0.0
+    user_heading: Optional[float] = None
+    user_speed_mps: Optional[float] = None
+
+    current_stop_idx: int = 0
+    current_leg_idx: int = 0
+    visited_stop_ids: List[str] = Field(default_factory=list)
+
+    km_from_start: float = 0.0
+    km_remaining: float = 0.0
+    total_km: float = 0.0
+
+    local_time_iso: Optional[str] = None
+    timezone: str = "Australia/Brisbane"
+    updated_at: Optional[str] = None
+
+
+class WirePlace(BaseModel):
+    """
+    Pre-filtered "relevant places" the server hands to the LLM so it
+    can recommend without a tool call.  Includes contact info for
+    action buttons.
+    """
+    id: str
+    name: str
+    lat: float
+    lng: float
+    category: str
+    dist_km: Optional[float] = None
+    ahead: bool = True
+    locality: Optional[str] = None
+    hours: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
 
 
 class GuideContext(BaseModel):
@@ -217,16 +325,29 @@ class GuideContext(BaseModel):
     bbox: Optional[Dict[str, Any]] = None  # BBox4-ish dict
 
     stops: List[Dict[str, Any]] = Field(default_factory=list)
+    total_distance_m: Optional[float] = None
+    total_duration_s: Optional[float] = None
 
     manifest_route_key: Optional[str] = None
     offline_stale: Optional[bool] = None
+
+    progress: Optional[TripProgress] = None
 
     traffic_summary: Optional[Dict[str, Any]] = None
     hazards_summary: Optional[Dict[str, Any]] = None
 
 
+class GuideAction(BaseModel):
+    """Structured UI action rendered as a button/pill in the chat."""
+    type: GuideActionType
+    label: str
+    place_id: Optional[str] = None
+    place_name: Optional[str] = None
+    url: Optional[str] = None
+    tel: Optional[str] = None
+
+
 class GuideToolCall(BaseModel):
-    # allow missing id so model output doesn't hard-fail; we fill it server-side
     id: Optional[str] = None
     tool: GuideToolName
     req: Dict[str, Any]
@@ -244,11 +365,12 @@ class GuideTurnRequest(BaseModel):
     thread: List[GuideMsg] = Field(default_factory=list)
     tool_results: List[GuideToolResult] = Field(default_factory=list)
     preferred_categories: List[str] = Field(default_factory=list)
+    relevant_places: List[WirePlace] = Field(default_factory=list)
 
 
 class GuideTurnResponse(BaseModel):
-    # allow missing assistant text; we fill to "" if absent
     assistant: str = ""
+    actions: List[GuideAction] = Field(default_factory=list)
     tool_calls: List[GuideToolCall] = Field(default_factory=list)
     done: bool = False
 

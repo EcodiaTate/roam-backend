@@ -40,33 +40,39 @@ def get_corridor_service() -> Corridor:
 
 
 # ──────────────────────────────────────────────────────────────
-# Default category sets
+# Default category sets — tiered by use case
 # ──────────────────────────────────────────────────────────────
 
-# Full set for corridor/offline — everything you'd want on a road trip
 _CORRIDOR_DEFAULT_CATS: list[PlaceCategory] = [
-    # Essentials
-    "fuel", "toilet", "water", "camp", "town",
-    "grocery", "mechanic", "hospital", "pharmacy",
-    # Food & drink
-    "cafe", "restaurant", "fast_food", "pub", "bar",
-    # Accommodation
-    "hotel", "motel", "hostel",
-    # Nature & outdoors
-    "viewpoint", "waterfall", "swimming_hole", "national_park",
-    "picnic", "hiking", "beach", "park",
-    # Sightseeing
-    "attraction", "museum", "gallery", "zoo", "theme_park", "heritage",
+    # ── Essentials & safety (non-negotiable for remote driving) ──
+    "fuel", "ev_charging", "rest_area", "toilet", "water",
+    "dump_point", "mechanic", "hospital", "pharmacy",
+    # ── Supplies ──
+    "grocery", "town", "atm", "laundromat",
+    # ── Food & drink ──
+    "bakery", "cafe", "restaurant", "fast_food", "pub", "bar",
+    # ── Accommodation ──
+    "camp", "hotel", "motel", "hostel",
+    # ── Nature & outdoors ──
+    "viewpoint", "waterfall", "swimming_hole", "beach",
+    "national_park", "hiking", "picnic", "hot_spring",
+    # ── Family & recreation ──
+    "playground", "pool", "zoo", "theme_park",
+    # ── Culture & sightseeing ──
+    "visitor_info", "museum", "gallery", "heritage",
+    "winery", "brewery", "attraction", "market", "park",
 ]
 
-# Lighter set for suggest (quick corridor highlights)
 _SUGGEST_DEFAULT_CATS: list[PlaceCategory] = [
-    "fuel", "toilet", "town",
-    "cafe", "restaurant", "fast_food",
-    "viewpoint", "waterfall", "swimming_hole", "national_park",
-    "attraction", "beach",
-    "camp", "water",
-    "hotel", "motel",
+    "fuel", "ev_charging", "rest_area", "water", "toilet",
+    "bakery", "cafe", "restaurant", "fast_food", "pub",
+    "camp", "motel", "hotel",
+    "viewpoint", "waterfall", "swimming_hole", "beach",
+    "national_park", "hiking", "picnic", "hot_spring",
+    "playground", "pool", "zoo",
+    "visitor_info", "winery", "brewery", "attraction",
+    "museum", "heritage", "market",
+    "town",
 ]
 
 
@@ -121,26 +127,34 @@ def places_corridor(
     cats = req.categories or _CORRIDOR_DEFAULT_CATS
     limit = int(req.limit or 8000)
 
-    # ── Preferred path: route geometry provided ──────────────
-    # The frontend sends the polyline6 from the NavPack so we
-    # can query a true corridor buffer along the actual road
-    # shape instead of a start-to-end rectangle.
-    geometry: str | None = getattr(req, "geometry", None)
+    # ── Direct attribute access (geometry is on the Pydantic model) ──
+    geometry = req.geometry
+    buffer_km = req.buffer_km or 15.0
 
-    if geometry and isinstance(geometry, str) and len(geometry) > 10:
-        buffer_km = float(getattr(req, "buffer_km", 15.0))
+    logger.info(
+        "places_corridor: corridor_key=%s geometry=%s buffer_km=%s limit=%d",
+        req.corridor_key[:16] if req.corridor_key else "?",
+        f"polyline6[{len(geometry)}]" if geometry else "NONE",
+        buffer_km,
+        limit,
+    )
+
+    # ── Preferred path: route geometry provided ──────────────
+    if geometry and len(geometry) > 10:
+        logger.info("places_corridor: using POLYLINE path (search_corridor_polyline)")
         return places.search_corridor_polyline(
             polyline6=geometry,
-            buffer_km=buffer_km,
+            buffer_km=float(buffer_km),
             categories=cats,
             limit=limit,
             sample_interval_km=8.0,
         )
 
     # ── Fallback: corridor pack bbox ─────────────────────────
-    # If no geometry was sent (older clients), fall back to the
-    # corridor pack's bounding box.  This is the old behaviour
-    # that clusters around start/end — we keep it for compat.
+    logger.warning(
+        "places_corridor: NO geometry — falling back to corridor bbox. "
+        "This produces destination-biased results!"
+    )
     cpack = corridor.get(req.corridor_key)
     if not cpack:
         not_found("corridor_missing", f"no corridor pack found for {req.corridor_key}")

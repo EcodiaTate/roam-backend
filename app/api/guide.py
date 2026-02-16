@@ -1,9 +1,10 @@
-# app/api/guide.py (or wherever your guide router lives)
+# app/api/guide.py
 from __future__ import annotations
 
 from fastapi import APIRouter
+from app.core.contracts import GuideTurnRequest, GuideTurnResponse
 from app.core.errors import bad_request
-from app.services.guide import GuideService, GuideTurnRequest, GuideTurnResponse
+from app.services.guide import GuideService
 
 router = APIRouter(prefix="/guide")
 

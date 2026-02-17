@@ -21,19 +21,25 @@ from app.services.places_store import PlacesStore
 
 app = FastAPI(title="Roam Backend", version="1.0.0")
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Capacitor / iOS
+        "capacitor://localhost",
+        "ionic://localhost",  # safe to include; some setups use this
+
+        # Local web dev
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
-        # If you run the frontend on another port, add it here.
+
+        # (optional) your deployed web origin(s) if you have them
+        # "https://roam.ecodia.au",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],  # includes Range
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
 )
 

@@ -4,6 +4,7 @@ services:
     container_name: roam-backend
     environment:
       - CACHE_DB_PATH=/cache/roam_cache.db
+      - PORT=8000
     volumes:
       - roam_cache:/cache
     ports:

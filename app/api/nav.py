@@ -7,6 +7,9 @@ from app.core.contracts import (
     BBox4,
     CorridorGraphMeta,
     CorridorGraphPack,
+    ElevationProfile,
+    ElevationRequest,
+    GradeSegment,
     NavPack,
     NavRequest,
     TrafficOverlay,
@@ -17,11 +20,16 @@ from app.services.routing import Routing
 from app.services.corridor import Corridor
 from app.services.traffic import Traffic
 from app.services.hazards import Hazards
+from app.services.elevation import Elevation, compute_grade_segments
 from app.core.storage import put_nav_pack
 from app.core.settings import settings
 
 router = APIRouter(prefix="/nav")
 
+
+# ──────────────────────────────────────────────────────────────
+# Dependency factories
+# ──────────────────────────────────────────────────────────────
 
 def get_routing_service() -> Routing:
     return Routing(
@@ -47,13 +55,13 @@ def get_hazards_service(cache_conn=Depends(get_cache_conn)) -> Hazards:
     return Hazards(conn=cache_conn)
 
 
-class CorridorEnsureRequest(BaseModel):
-    route_key: str
-    geometry: str  # polyline6
-    profile: str = "drive"
-    buffer_m: int | None = None
-    max_edges: int | None = None
+def get_elevation_service() -> Elevation:
+    return Elevation(timeout_s=30.0)
 
+
+# ──────────────────────────────────────────────────────────────
+# Route
+# ──────────────────────────────────────────────────────────────
 
 @router.post("/route", response_model=NavPack)
 def nav_route(
@@ -71,6 +79,18 @@ def nav_route(
         pack=pack.model_dump(),
     )
     return pack
+
+
+# ──────────────────────────────────────────────────────────────
+# Corridor
+# ──────────────────────────────────────────────────────────────
+
+class CorridorEnsureRequest(BaseModel):
+    route_key: str
+    geometry: str  # polyline6
+    profile: str = "drive"
+    buffer_m: int | None = None
+    max_edges: int | None = None
 
 
 @router.post("/corridor/ensure", response_model=CorridorGraphMeta)
@@ -105,6 +125,33 @@ def corridor_get(
     if not pack:
         not_found("corridor_missing", f"no corridor pack found for {corridor_key}")
     return pack
+
+
+# ──────────────────────────────────────────────────────────────
+# Elevation
+# ──────────────────────────────────────────────────────────────
+
+class ElevationResponse(BaseModel):
+    """Elevation profile with optional pre-computed grade segments."""
+    profile: ElevationProfile
+    grade_segments: list[GradeSegment] = Field(default_factory=list)
+
+
+@router.post("/elevation", response_model=ElevationResponse)
+def nav_elevation(
+    req: ElevationRequest,
+    svc: Elevation = Depends(get_elevation_service),
+) -> ElevationResponse:
+    if not req.geometry:
+        bad_request("bad_elevation_request", "geometry (polyline6) is required")
+
+    profile = svc.profile(req)
+
+    # Pre-compute grade segments so the frontend can use them directly
+    # for fuel range adjustments without recomputing
+    grades = compute_grade_segments(profile, segment_length_km=5.0)
+
+    return ElevationResponse(profile=profile, grade_segments=grades)
 
 
 # ──────────────────────────────────────────────────────────────

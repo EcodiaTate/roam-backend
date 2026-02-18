@@ -29,7 +29,47 @@ class BBox4(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Navigation
+# Navigation — Maneuvers & Steps (turn-by-turn)
+# ──────────────────────────────────────────────────────────────
+
+ManeuverType = Literal[
+    "turn", "depart", "arrive",
+    "merge", "fork", "on ramp", "off ramp",
+    "roundabout", "rotary", "exit roundabout",
+    "new name", "continue", "end of road",
+    "notification",
+]
+
+ManeuverModifier = Literal[
+    "left", "right",
+    "slight left", "slight right",
+    "sharp left", "sharp right",
+    "straight", "uturn",
+]
+
+
+class NavManeuver(BaseModel):
+    type: ManeuverType = "turn"
+    modifier: Optional[ManeuverModifier] = None
+    location: List[float]           # [lng, lat] — OSRM convention
+    bearing_before: int = 0
+    bearing_after: int = 0
+    exit: Optional[int] = None      # roundabout exit number
+
+
+class NavStep(BaseModel):
+    maneuver: NavManeuver
+    name: str                       # road name ("Bruce Highway", "")
+    ref: Optional[str] = None       # route reference ("M1", "A1")
+    distance_m: float
+    duration_s: float
+    geometry: str                   # polyline6 for this step's segment
+    mode: str = "driving"
+    pronunciation: Optional[str] = None  # phonetic road name for TTS
+
+
+# ──────────────────────────────────────────────────────────────
+# Navigation — Core route models
 # ──────────────────────────────────────────────────────────────
 
 class NavRequest(BaseModel):
@@ -46,7 +86,8 @@ class NavLeg(BaseModel):
     to_stop_id: Optional[str] = None
     distance_m: int
     duration_s: int
-    geometry: str  # Polyline6
+    geometry: str                   # Polyline6 (this leg only)
+    steps: List[NavStep] = Field(default_factory=list)
 
 
 class NavRoute(BaseModel):
@@ -54,11 +95,11 @@ class NavRoute(BaseModel):
     profile: str
     distance_m: int
     duration_s: int
-    geometry: str  # Polyline6 (full)
+    geometry: str                   # Polyline6 (full route)
     bbox: BBox4
     legs: List[NavLeg]
-    provider: str  # "osrm"
-    created_at: str  # ISO8601 UTC
+    provider: str                   # "osrm"
+    created_at: str                 # ISO8601 UTC
     algo_version: str
 
 
@@ -70,6 +111,42 @@ class NavPack(BaseModel):
     req: NavRequest
     primary: NavRoute
     alternates: RouteAlternates = Field(default_factory=RouteAlternates)
+
+
+# ──────────────────────────────────────────────────────────────
+# Elevation profiles
+# ──────────────────────────────────────────────────────────────
+
+class ElevationRequest(BaseModel):
+    geometry: str                   # polyline6
+    sample_interval_m: int = 500    # sample every N metres
+    route_key: Optional[str] = None
+
+
+class ElevationSample(BaseModel):
+    km_along: float
+    elevation_m: float
+    lat: float
+    lng: float
+
+
+class ElevationProfile(BaseModel):
+    route_key: Optional[str] = None
+    samples: List[ElevationSample]
+    min_elevation_m: float
+    max_elevation_m: float
+    total_ascent_m: float
+    total_descent_m: float
+    created_at: str
+
+
+class GradeSegment(BaseModel):
+    """Derived segment for elevation-aware fuel analysis."""
+    from_km: float
+    to_km: float
+    avg_grade_pct: float            # positive = uphill, negative = downhill
+    elevation_change_m: float
+    fuel_penalty_factor: float      # 1.0 = flat, 1.35 = steep uphill, 0.85 = steep downhill
 
 
 # ──────────────────────────────────────────────────────────────
@@ -385,6 +462,19 @@ TrafficType = Literal["hazard", "closure", "congestion", "roadworks", "flooding"
 HazardSeverity = Literal["low", "medium", "high", "unknown"]
 HazardKind = Literal["flood", "cyclone", "storm", "fire", "wind", "heat", "marine", "weather_warning", "unknown"]
 
+# CAP-AU urgency and certainty levels (used for composite severity scoring)
+CapUrgency = Literal["immediate", "expected", "future", "past", "unknown"]
+CapCertainty = Literal["observed", "likely", "possible", "unlikely", "unknown"]
+
+# Route impact classification — computed client-side by intersecting alert
+# geometry with the route polyline buffer.
+RouteImpact = Literal[
+    "blocks_route",     # closure/flood geometry intersects route within 500m
+    "affects_route",    # hazard zone covers part of route, road may be passable
+    "nearby",           # within corridor but not directly on route
+    "informational",    # in the region but irrelevant to this specific route
+]
+
 GeoJSON = Dict[str, Any]
 
 
@@ -398,8 +488,11 @@ class TrafficEvent(BaseModel):
     description: Optional[str] = None
     url: Optional[str] = None
     last_updated: Optional[str] = None
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
     geometry: Optional[GeoJSON] = None
     bbox: Optional[List[float]] = None
+    region: Optional[str] = None  # "qld", "nsw", "vic", etc.
     raw: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -418,6 +511,10 @@ class HazardEvent(BaseModel):
     source: str
     kind: HazardKind = "unknown"
     severity: HazardSeverity = "unknown"
+    # CAP-AU composite scoring fields
+    urgency: CapUrgency = "unknown"
+    certainty: CapCertainty = "unknown"
+    effective_priority: float = 0.0  # 0.0 (lowest) to 1.0 (highest)
     title: str
     description: Optional[str] = None
     url: Optional[str] = None
@@ -426,6 +523,7 @@ class HazardEvent(BaseModel):
     end_at: Optional[str] = None
     geometry: Optional[GeoJSON] = None
     bbox: Optional[List[float]] = None
+    region: Optional[str] = None  # "qld", "nsw", "vic", etc.
     raw: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -458,6 +556,7 @@ class OfflineBundleManifest(BaseModel):
     places_status: AssetStatus = "missing"
     traffic_status: AssetStatus = "missing"
     hazards_status: AssetStatus = "missing"
+    elevation_status: AssetStatus = "missing"
 
     corridor_key: Optional[str] = None
     places_key: Optional[str] = None

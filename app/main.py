@@ -1,5 +1,7 @@
+# app/main.py
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,13 +13,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 from app.core.settings import settings
-from app.core.storage import connect_sqlite, connect_sqlite_ro, ensure_schema
+from app.core.storage import connect_sqlite, ensure_schema
+from app.core.edges_db import create_edges_db
 from app.api import api_router
 
 from app.services.corridor import Corridor
 from app.services.bundle import Bundle
 from app.services.places import Places
 from app.services.places_store import PlacesStore
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Roam Backend", version="1.0.0")
 
@@ -26,16 +31,14 @@ app.add_middleware(
     allow_origins=[
         # Capacitor / iOS
         "capacitor://localhost",
-        "ionic://localhost",  # safe to include; some setups use this
+        "ionic://localhost",
 
         # Local web dev
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
+        "https://roam.ecodia.au",
         "http://127.0.0.1:3001",
-
-        # (optional) your deployed web origin(s) if you have them
-        # "https://roam.ecodia.au",
     ],
     allow_credentials=False,
     allow_methods=["*"],
@@ -47,15 +50,19 @@ app.add_middleware(
 # DB connections
 # ──────────────────────────────────────────────────────────────
 
-# Cache DB (rw)
+# Cache DB (rw) — SQLite, local to the instance
 _cache_conn = connect_sqlite(settings.cache_db_path)
 ensure_schema(_cache_conn)
 
-# Edges DB (ro)
-_edges_conn = connect_sqlite_ro(settings.edges_db_path)
+# Edges DB — Postgres+PostGIS in production, SQLite for local dev
+# Priority: EDGES_DATABASE_URL → EDGES_DB_PATH → EDGES_DB_DIR fallback
+_edges_db = create_edges_db(
+    database_url=settings.edges_database_url,
+    sqlite_path=settings.edges_db_path if not settings.edges_database_url else None,
+)
 
 # Canonical POI store (in the cache DB)
-_places_store = PlacesStore(_cache_conn)  # ensure_schema already handled by ensure_schema(_cache_conn)
+_places_store = PlacesStore(_cache_conn)
 
 # ──────────────────────────────────────────────────────────────
 # Dependency providers
@@ -68,18 +75,16 @@ def provide_cache_conn():
 def provide_corridor_service() -> Corridor:
     return Corridor(
         cache_conn=_cache_conn,
-        edges_conn=_edges_conn,
+        edges_db=_edges_db,
         algo_version=settings.corridor_algo_version,
     )
 
 
 def provide_bundle_service() -> Bundle:
-    # Bundle reads cached packs and assembles zips.
     return Bundle(conn=_cache_conn)
 
 
 def provide_places_service() -> Places:
-    # Local-first places with canonical store + Overpass top-up.
     return Places(
         cache_conn=_cache_conn,
         algo_version=settings.places_algo_version,
@@ -88,7 +93,7 @@ def provide_places_service() -> Places:
 
 
 # ──────────────────────────────────────────────────────────────
-# Dependency overrides (IMPORTANT: import the same modules your routers use)
+# Dependency overrides
 # ──────────────────────────────────────────────────────────────
 
 from app.api import nav as nav_api
@@ -107,12 +112,25 @@ app.dependency_overrides[nav_api.get_cache_conn] = provide_cache_conn
 app.dependency_overrides[bundle_api.get_cache_conn] = provide_cache_conn
 
 # Places
-
-# Places
 app.dependency_overrides[places_api.get_places_service] = provide_places_service
-app.dependency_overrides[places_api.get_corridor_service] = provide_corridor_service  #  ADD THIS
+app.dependency_overrides[places_api.get_corridor_service] = provide_corridor_service
 app.dependency_overrides[bundle_api.get_places_service] = provide_places_service
 
 # Routes
 app.include_router(api_router)
 
+# ──────────────────────────────────────────────────────────────
+# Shutdown
+# ──────────────────────────────────────────────────────────────
+
+@app.on_event("shutdown")
+def shutdown():
+    logger.info("[app] Shutting down — closing connections")
+    try:
+        _edges_db.close()
+    except Exception as e:
+        logger.warning(f"[app] Error closing edges DB: {e}")
+    try:
+        _cache_conn.close()
+    except Exception:
+        pass

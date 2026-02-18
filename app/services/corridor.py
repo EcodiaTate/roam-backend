@@ -1,3 +1,4 @@
+# app/services/corridor.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from app.core.contracts import (
     CorridorNode,
     CorridorEdge,
 )
+from app.core.edges_db import EdgesDB
 from app.core.keying import corridor_key
 from app.core.polyline6 import decode_polyline6
 from app.core.storage import get_corridor_pack, put_corridor_pack
@@ -21,11 +23,12 @@ def _bbox_expand(b: BBox4, buffer_m: int) -> BBox4:
     Rough meter -> degree expansion.
     Good enough for corridor extraction (bbox + rtree).
     """
+    import math
+
     # 1 deg lat ~ 111,320m
     dlat = buffer_m / 111_320.0
 
     # 1 deg lon scales by cos(lat); approximate using bbox mid-lat
-    import math
     mid_lat = (b.minLat + b.maxLat) / 2.0
     cosv = max(0.2, math.cos(math.radians(mid_lat)))
     dlng = buffer_m / (111_320.0 * cosv)
@@ -55,9 +58,10 @@ class CorridorEnsureResult:
 
 class Corridor:
     """
-    Builds a corridor graph pack from edges_queensland.db
+    Builds a corridor graph pack from the road network edges database.
 
-    Uses edges_rtree to fetch all edges intersecting the corridor bbox.
+    Supports both SQLite (local dev) and Postgres+PostGIS (production)
+    via the EdgesDB abstraction.
 
     Node IDs:
       - we use edges.from_id / edges.to_id as stable node IDs
@@ -68,10 +72,9 @@ class Corridor:
       4 = unsealed
     """
 
-
-    def __init__(self, *, cache_conn, edges_conn, algo_version: str):
+    def __init__(self, *, cache_conn, edges_db: EdgesDB, algo_version: str):
         self.cache_conn = cache_conn
-        self.edges_conn = edges_conn
+        self.edges_db = edges_db
         self.algo_version = algo_version
 
     def ensure(
@@ -85,6 +88,7 @@ class Corridor:
     ) -> CorridorEnsureResult:
         ckey = corridor_key(route_key, buffer_m, max_edges, profile, self.algo_version)
 
+        # Check cache first
         existing = get_corridor_pack(self.cache_conn, ckey)
         if existing:
             pack = CorridorGraphPack.model_validate(existing)
@@ -104,79 +108,43 @@ class Corridor:
         base_bbox = _bbox_from_poly6(route_polyline6)
         corridor_bbox = _bbox_expand(base_bbox, buffer_m)
 
-        # Query edges via RTree intersection test.
-        # RTree columns: min_lng, max_lng, min_lat, max_lat
-        min_lng = float(corridor_bbox.minLng)
-        max_lng = float(corridor_bbox.maxLng)
-        min_lat = float(corridor_bbox.minLat)
-        max_lat = float(corridor_bbox.maxLat)
-
-        sql = """
-        SELECT
-          e.edge_id,
-          e.from_id, e.to_id,
-          e.from_lng, e.from_lat,
-          e.to_lng,   e.to_lat,
-          e.dist_m, e.cost_s,
-          COALESCE(e.toll,0) AS toll,
-          COALESCE(e.ferry,0) AS ferry,
-          COALESCE(e.unsealed,0) AS unsealed
-        FROM edges_rtree r
-        JOIN edges e ON e.edge_id = r.edge_id
-        WHERE r.max_lng >= ?
-          AND r.min_lng <= ?
-          AND r.max_lat >= ?
-          AND r.min_lat <= ?
-        LIMIT ?;
-        """
-
-        cur = self.edges_conn.execute(
-            sql,
-            (min_lng, max_lng, min_lat, max_lat, int(max_edges)),
+        # Query edges via spatial index (works for both SQLite R-Tree and PostGIS GIST)
+        edge_rows = self.edges_db.query_bbox(
+            min_lng=float(corridor_bbox.minLng),
+            max_lng=float(corridor_bbox.maxLng),
+            min_lat=float(corridor_bbox.minLat),
+            max_lat=float(corridor_bbox.maxLat),
+            max_edges=max_edges,
         )
 
-        # Build nodes + edges
+        # Build nodes + edges from query results
         node_coords: Dict[int, Tuple[float, float]] = {}
         edges_out: list[CorridorEdge] = []
 
-        count = 0
-        for row in cur.fetchall():
-            (
-                edge_id,
-                from_id, to_id,
-                from_lng, from_lat,
-                to_lng, to_lat,
-                dist_m, cost_s,
-                toll, ferry, unsealed
-            ) = row
-
-            from_id_i = int(from_id)
-            to_id_i = int(to_id)
-
-            # Record node coords (lat,lng)
-            if from_id_i not in node_coords:
-                node_coords[from_id_i] = (float(from_lat), float(from_lng))
-            if to_id_i not in node_coords:
-                node_coords[to_id_i] = (float(to_lat), float(to_lng))
+        for row in edge_rows:
+            # Record node coords (lat, lng)
+            if row.from_id not in node_coords:
+                node_coords[row.from_id] = (row.from_lat, row.from_lng)
+            if row.to_id not in node_coords:
+                node_coords[row.to_id] = (row.to_lat, row.to_lng)
 
             flags = 0
-            if int(toll) == 1:
+            if row.toll == 1:
                 flags |= 1
-            if int(ferry) == 1:
+            if row.ferry == 1:
                 flags |= 2
-            if int(unsealed) == 1:
+            if row.unsealed == 1:
                 flags |= 4
 
             edges_out.append(
                 CorridorEdge(
-                    a=from_id_i,
-                    b=to_id_i,
-                    distance_m=int(round(float(dist_m))),
-                    duration_s=int(round(float(cost_s))),
+                    a=row.from_id,
+                    b=row.to_id,
+                    distance_m=int(round(row.dist_m)),
+                    duration_s=int(round(row.cost_s)),
                     flags=flags,
                 )
             )
-            count += 1
 
         nodes_out = [
             CorridorNode(id=nid, lat=lat, lng=lng)
@@ -218,10 +186,10 @@ class Corridor:
         )
         return CorridorEnsureResult(meta=meta, pack=pack)
 
-  #  API-facing method name expected by nav.py
+    # API-facing method name expected by nav.py
     def get(self, corridor_key: str) -> Optional[CorridorGraphPack]:
         return self.get_corridor_pack(corridor_key)
-    
+
     def get_corridor_pack(self, corridor_key_str: str) -> Optional[CorridorGraphPack]:
         row = get_corridor_pack(self.cache_conn, corridor_key_str)
         if not row:

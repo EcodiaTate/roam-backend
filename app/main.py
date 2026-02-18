@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 # Load /backend/.env (main.py is /backend/app/main.py)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,6 +26,9 @@ from app.services.places_store import PlacesStore
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Roam Backend", version="1.0.0")
+
+# ── Compression (must be added before CORS) ──
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,

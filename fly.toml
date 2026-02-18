@@ -7,7 +7,7 @@ primary_region = 'syd'
 [[mounts]]
   source = 'pg_data'
   destination = '/data'
-
+  
 [[services]]
   protocol = 'tcp'
   internal_port = 5433
@@ -15,7 +15,7 @@ primary_region = 'syd'
 
   [[services.ports]]
     port = 5432
-    handlers = ['pg_tls']
+    handlers = []
 
   [services.concurrency]
     type = 'connections'

@@ -93,7 +93,7 @@ def _sample_polyline(
 
 
 # ──────────────────────────────────────────────────────────────
-# Open-Elevation API client (MVP — swap to SRTM tiles later)
+# Open-Elevation API client (MVP - swap to SRTM tiles later)
 # ──────────────────────────────────────────────────────────────
 
 _OPEN_ELEV_URL = "https://api.open-elevation.com/api/v1/lookup"
@@ -106,7 +106,7 @@ class Elevation:
 
     MVP: calls the free Open-Elevation API.
     Production: swap _fetch_elevations() to read from self-hosted SRTM HGT
-    tiles — the public interface and contracts stay identical.
+    tiles - the public interface and contracts stay identical.
     """
 
     def __init__(self, *, timeout_s: float = 30.0):

@@ -4,8 +4,8 @@ app/core/edges_db.py
 Unified interface for querying the road-network edges database.
 
 Two backends:
-  - EdgesDBSqlite   — local dev (R-Tree spatial index)
-  - EdgesDBPostgres — production on Fly.io (PostGIS GIST index)
+  - EdgesDBSqlite   - local dev (R-Tree spatial index)
+  - EdgesDBPostgres - production on Fly.io (PostGIS GIST index)
 
 Factory function `create_edges_db()` auto-selects based on config.
 

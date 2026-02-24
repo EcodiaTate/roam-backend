@@ -11,10 +11,10 @@ class Settings(BaseSettings):
     data_dir: str = Field(default="app/data", alias="DATA_DIR")
     cache_db_path: str = Field(default="app/data/roam_cache.db", alias="CACHE_DB_PATH")
 
-    # Edges DB — Postgres+PostGIS (production). Takes priority over edges_db_path.
+    # Edges DB - Postgres+PostGIS (production). Takes priority over edges_db_path.
     edges_database_url: str | None = Field(default=None, alias="EDGES_DATABASE_URL")
 
-    # Edges DB — SQLite fallback (local dev)
+    # Edges DB - SQLite fallback (local dev)
     edges_db_path: str = Field(default="app/data/edges_queensland.db", alias="EDGES_DB_PATH")
 
     # OSRM
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     supa_enabled: bool = Field(default=False, alias="SUPA_ENABLED")
 
     # ──────────────────────────────────────────────────────────────
-    # Overlays: Traffic + Hazards — shared config
+    # Overlays: Traffic + Hazards - shared config
     # ──────────────────────────────────────────────────────────────
 
     traffic_algo_version: str = Field(
@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     qldtraffic_flooding_url: str | None = Field(default=None, alias="QLDTRAFFIC_FLOODING_URL")
 
     # ──────────────────────────────────────────────────────────────
-    # NSW Traffic — Live Traffic NSW (TfNSW Open Data)
+    # NSW Traffic - Live Traffic NSW (TfNSW Open Data)
     # GeoJSON feeds at api.transport.nsw.gov.au/v1/live/hazards/{type}
     # Types: incidents, fires, floods, alpine, roadworks, majorevent, planned
     # Auth: Authorization: apikey {key}
@@ -116,7 +116,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # VIC Traffic — VicRoads Data Exchange
+    # VIC Traffic - VicRoads Data Exchange
     # JSON API at data-exchange.vicroads.vic.gov.au
     # Auth: KeyID header
     # ──────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # SA Traffic — Traffic SA + DIT outback road conditions
+    # SA Traffic - Traffic SA + DIT outback road conditions
     # NOTE: data.sa.gov.au GeoJSON feed is 404/dead as of Feb 2026.
     # Disabled by default until a replacement feed is found.
     # ──────────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # WA Traffic — Main Roads WA ArcGIS GeoJSON (CC-BY 4.0)
+    # WA Traffic - Main Roads WA ArcGIS GeoJSON (CC-BY 4.0)
     # Road incidents via ArcGIS FeatureServer query endpoint.
     # No auth required. Returns GeoJSON FeatureCollection.
     # ──────────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # NT Traffic — NT Road Report (roadreport.nt.gov.au)
+    # NT Traffic - NT Road Report (roadreport.nt.gov.au)
     # JSON array of obstructions with start/end coordinates.
     # No auth required. Also doubles as outback road conditions overlay.
     # ──────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # Hazards feeds — BOM per-state RSS warnings (national coverage)
+    # Hazards feeds - BOM per-state RSS warnings (national coverage)
     # These are XML RSS feeds from the Bureau of Meteorology.
     # No auth required. Updated every few minutes.
     # ──────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # CAP feeds — per-state emergency alerting (CAP-AU format)
+    # CAP feeds - per-state emergency alerting (CAP-AU format)
     # ──────────────────────────────────────────────────────────────
 
     # QLD CAP feeds (existing)
@@ -228,7 +228,7 @@ class Settings(BaseSettings):
     )
 
     # NSW emergency feeds
-    # NOTE: NSW SES warnings XML confirmed 404/dead — removed.
+    # NOTE: NSW SES warnings XML confirmed 404/dead - removed.
     nsw_rfs_fires_url: str = Field(
         default="https://www.rfs.nsw.gov.au/feeds/majorIncidents.json",
         alias="NSW_RFS_FIRES_URL",
@@ -247,7 +247,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # WA DFES emergency feeds — api.emergency.wa.gov.au/v1/
+    # WA DFES emergency feeds - api.emergency.wa.gov.au/v1/
     # Confirmed working: incidents + warnings endpoints.
     # No auth required.
     # ──────────────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # National DEA Fire Hotspots — satellite detection (CC-BY 4.0)
+    # National DEA Fire Hotspots - satellite detection (CC-BY 4.0)
     # Geoscience Australia Digital Earth Australia.
     # GeoJSON FeatureCollection of all recent satellite-detected hotspots.
     # Covers ALL Australian states via MODIS, HIMAWARI-9, VIIRS, AQUA.
@@ -285,9 +285,9 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # TAS Hazards — TheList ArcGIS (public, no auth)
+    # TAS Hazards - TheList ArcGIS (public, no auth)
     # Emergency Management layer from services.thelist.tas.gov.au.
-    # ArcGIS JSON format (NOT GeoJSON — uses {"x": lng, "y": lat}).
+    # ArcGIS JSON format (NOT GeoJSON - uses {"x": lng, "y": lat}).
     # ──────────────────────────────────────────────────────────────
 
     tas_hazards_enabled: bool = Field(default=True, alias="TAS_HAZARDS_ENABLED")
@@ -301,7 +301,7 @@ class Settings(BaseSettings):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # TAS Direct Alert Feed — TasALERT (pending email permission)
+    # TAS Direct Alert Feed - TasALERT (pending email permission)
     # Richer data at alert.tas.gov.au but requires emailing
     # info@alert.tas.gov.au for API access.
     # Uncomment when permission is granted.

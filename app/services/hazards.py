@@ -198,7 +198,7 @@ def _compute_effective_priority(
     Weights: severity 40%, urgency 35%, certainty 25%.
 
     A "Severe + Immediate + Observed" flood scores much higher than a
-    "Severe + Future + Possible" storm — this dramatically improves ranking
+    "Severe + Future + Possible" storm - this dramatically improves ranking
     when there are 10+ warnings in a region.
     """
     sev_s = _CAP_SEVERITY_SCORES.get((severity or "").strip().lower(), 0.3)
@@ -417,7 +417,7 @@ def _parse_cap(xml_text: str, source: str, region: str) -> List[HazardEvent]:
     alert_identifier = _find_first_text(root, "identifier") or ""
     alert_sent = _find_first_text(root, "sent") or None
 
-    # Check for alert-level status — skip "Cancel" alerts
+    # Check for alert-level status - skip "Cancel" alerts
     alert_status = (_find_first_text(root, "status") or "").strip().lower()
     if alert_status == "cancel":
         return out
@@ -561,7 +561,7 @@ def _parse_nsw_rfs_json(json_text: str) -> List[HazardEvent]:
                 kind="fire",             # type: ignore
                 severity=sev,            # type: ignore
                 urgency="immediate" if sev == "high" else "expected",  # type: ignore
-                certainty="observed",    # type: ignore — fires are observed events
+                certainty="observed",    # type: ignore - fires are observed events
                 effective_priority=_compute_effective_priority(
                     "severe" if sev == "high" else "moderate",
                     "immediate" if sev == "high" else "expected",
@@ -639,11 +639,11 @@ def _parse_vic_emergency_json(json_text: str) -> List[HazardEvent]:
 
         # Build a readable headline
         if inc_name and inc_location:
-            title = f"{inc_name} — {inc_location}"
+            title = f"{inc_name} - {inc_location}"
         elif inc_name:
             title = inc_name
         elif inc_location:
-            title = f"{inc_type} — {inc_location}" if inc_type else inc_location
+            title = f"{inc_type} - {inc_location}" if inc_type else inc_location
         else:
             title = inc_type or "VIC Emergency Incident"
 
@@ -690,7 +690,7 @@ def _parse_vic_emergency_json(json_text: str) -> List[HazardEvent]:
             geom = {"type": "Point", "coordinates": [lng, lat]}
             bbox_out = [lng, lat, lng, lat]
 
-        # Timestamps — VIC uses "DD/MM/YYYY HH:MM:SS" format
+        # Timestamps - VIC uses "DD/MM/YYYY HH:MM:SS" format
         updated_raw = inc.get("lastUpdateDateTime") or inc.get("lastUpdatedDtStr") or None
         origin_raw = inc.get("originDateTime") or inc.get("originDateTimeStr") or None
         # Also try epoch millis
@@ -790,7 +790,7 @@ def _parse_sa_cfs_json(json_text: str) -> List[HazardEvent]:
 
         # Build readable headline
         if location_name and inc_type:
-            title = f"{inc_type} — {location_name}"
+            title = f"{inc_type} - {location_name}"
         elif location_name:
             title = location_name
         elif inc_type:
@@ -815,7 +815,7 @@ def _parse_sa_cfs_json(json_text: str) -> List[HazardEvent]:
         # Vehicle accidents and assist agency aren't natural hazards but are
         # useful for route safety awareness
         if inc_type.lower() in ("vehicle accident", "assist agency", "rescue"):
-            kind = "weather_warning"  # generic — not a natural hazard kind
+            kind = "weather_warning"  # generic - not a natural hazard kind
 
         # Severity from Status + Level
         # Level 3 = Emergency Warning, Level 2 = Watch and Act, Level 1 = Advice
@@ -943,7 +943,7 @@ def _parse_wa_dfes_incidents(json_text: str) -> List[HazardEvent]:
         # Build title
         suburb_str = ", ".join(suburbs) if isinstance(suburbs, list) else ""
         if name and suburb_str:
-            title = f"{name} — {suburb_str}"
+            title = f"{name} - {suburb_str}"
         elif name:
             title = name
         else:
@@ -1012,7 +1012,7 @@ def _parse_wa_dfes_incidents(json_text: str) -> List[HazardEvent]:
                 geom = {"type": "Point", "coordinates": [lng, lat]}
                 bbox_out = [lng, lat, lng, lat]
 
-        # Timestamps — ISO format with timezone offset
+        # Timestamps - ISO format with timezone offset
         start_dt = inc.get("start-date-time") or None
         updated_dt = inc.get("updated-date-time") or inc.get("issued-date-time") or None
 
@@ -1081,7 +1081,7 @@ def _parse_wa_dfes_warnings(json_text: str) -> List[HazardEvent]:
 
         # Build title from warning-type + headline
         if warning_type and headline:
-            title = f"{warning_type} — {headline}"
+            title = f"{warning_type} - {headline}"
         elif warning_type:
             title = warning_type
         elif headline:
@@ -1134,7 +1134,7 @@ def _parse_wa_dfes_warnings(json_text: str) -> List[HazardEvent]:
             sev = _severity_from_text(title, desc or "")
             cap_sev, cap_urg = "moderate", "expected"
 
-        # Geometry from geo-source — may contain BOTH point markers and polygons
+        # Geometry from geo-source - may contain BOTH point markers and polygons
         # We want to collect all polygons for the warning area, or fall back to point
         geom: Optional[Dict[str, Any]] = None
         bbox_out: Optional[List[float]] = None
@@ -1281,7 +1281,7 @@ def _parse_dea_hotspots_json(json_text: str, *, bbox: BBox4) -> List[HazardEvent
         if lat is None or lng is None:
             continue
 
-        # Bbox filter — only include hotspots within the query bbox
+        # Bbox filter - only include hotspots within the query bbox
         if lng < bbox.minLng or lng > bbox.maxLng or lat < bbox.minLat or lat > bbox.maxLat:
             continue
 
@@ -1300,7 +1300,7 @@ def _parse_dea_hotspots_json(json_text: str, *, bbox: BBox4) -> List[HazardEvent
 
         # Title: informative but concise
         if fire_cat and state:
-            title = f"Satellite Fire Hotspot — {fire_cat} ({state})"
+            title = f"Satellite Fire Hotspot - {fire_cat} ({state})"
         elif state:
             title = f"Satellite Fire Hotspot ({state})"
         else:
@@ -1458,7 +1458,7 @@ def _parse_tas_thelist_json(json_text: str) -> List[HazardEvent]:
         if expires_at and _is_expired(expires_at):
             continue
 
-        # ArcGIS geometry: {"x": lng, "y": lat} — NOT GeoJSON
+        # ArcGIS geometry: {"x": lng, "y": lat} - NOT GeoJSON
         raw_geom = f.get("geometry") or {}
         geom: Optional[Dict[str, Any]] = None
         bbox_out: Optional[List[float]] = None
@@ -1496,7 +1496,7 @@ def _parse_tas_thelist_json(json_text: str) -> List[HazardEvent]:
 
         # Build title
         if alert_type and area_desc:
-            title = f"{alert_type} — {area_desc}"
+            title = f"{alert_type} - {area_desc}"
         elif alert_type:
             title = alert_type
         elif alert_summary:
@@ -1573,7 +1573,7 @@ def _parse_tas_thelist_json(json_text: str) -> List[HazardEvent]:
 
 
 # ══════════════════════════════════════════════════════════════
-# Source registry — maps states to their feeds
+# Source registry - maps states to their feeds
 # ══════════════════════════════════════════════════════════════
 
 def _bom_rss_url_for_state(state: str) -> Optional[str]:
@@ -1604,7 +1604,7 @@ def _cap_feeds_for_state(state: str) -> List[Tuple[str, str]]:
             feeds.append(("qld_emergency_alerts", settings.qld_emergency_alerts_url))
 
     elif state == "nsw":
-        # NSW SES warnings XML confirmed 404/dead — no CAP feeds for NSW
+        # NSW SES warnings XML confirmed 404/dead - no CAP feeds for NSW
         pass
         # NSW RFS is JSON, handled separately in _json_feeds_for_state
 
@@ -1642,7 +1642,7 @@ def _json_feeds_for_state(state: str) -> List[Tuple[str, str, str]]:
             url = getattr(settings, "tas_thelist_url", "") or ""
             if url:
                 feeds.append(("tas_thelist", url, "tas_thelist"))
-        # TasALERT direct feed — uncomment when email permission is granted:
+        # TasALERT direct feed - uncomment when email permission is granted:
         # if getattr(settings, "tas_alert_direct_enabled", False):
         #     url = getattr(settings, "tas_alert_direct_url", "") or ""
         #     if url:
@@ -1663,7 +1663,7 @@ _JSON_PARSERS: Dict[str, Any] = {
 
 
 # ══════════════════════════════════════════════════════════════
-# Main Hazards service — state-aware orchestrator
+# Main Hazards service - state-aware orchestrator
 # ══════════════════════════════════════════════════════════════
 
 class Hazards:

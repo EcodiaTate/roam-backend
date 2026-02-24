@@ -3,7 +3,7 @@
 Australian state/territory detection from bounding boxes.
 
 Used by traffic + hazards services to determine which state feeds to query.
-Bounding boxes are intentionally generous (overlapping at borders) —
+Bounding boxes are intentionally generous (overlapping at borders)  - 
 it's better to query both NSW and QLD for a border route than miss one.
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ from app.core.contracts import BBox4
 
 
 # Approximate state bounding boxes: (minLng, minLat, maxLng, maxLat)
-# Overlap at borders is intentional — we'd rather fetch both states.
+# Overlap at borders is intentional - we'd rather fetch both states.
 _STATE_BOUNDS: dict[str, Tuple[float, float, float, float]] = {
     "qld": (137.5, -29.5, 154.5, -9.5),
     "nsw": (140.5, -37.6, 154.0, -27.5),

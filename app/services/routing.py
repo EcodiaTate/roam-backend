@@ -52,7 +52,7 @@ def _concat_step_geometries(steps: List[NavStep]) -> str:
         if i == 0:
             all_pts.extend(pts)
         else:
-            # Skip first point — it's the same as the last point of the
+            # Skip first point - it's the same as the last point of the
             # previous step (the shared junction).
             if pts:
                 all_pts.extend(pts[1:])
@@ -186,7 +186,7 @@ class Routing:
 
         best = routes[0]
 
-        # Overview geometry — already polyline6 from OSRM
+        # Overview geometry - already polyline6 from OSRM
         overview_poly6: str = best.get("geometry", "")
         if not overview_poly6:
             service_unavailable("osrm_bad_geometry", "OSRM returned empty geometry")

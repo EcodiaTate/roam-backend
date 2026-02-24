@@ -54,11 +54,11 @@ app.add_middleware(
 # DB connections
 # ──────────────────────────────────────────────────────────────
 
-# Cache DB (rw) — SQLite, local to the instance
+# Cache DB (rw) - SQLite, local to the instance
 _cache_conn = connect_sqlite(settings.cache_db_path)
 ensure_schema(_cache_conn)
 
-# Edges DB — Postgres+PostGIS in production, SQLite for local dev
+# Edges DB - Postgres+PostGIS in production, SQLite for local dev
 # Priority: EDGES_DATABASE_URL → EDGES_DB_PATH → EDGES_DB_DIR fallback
 _edges_db = create_edges_db(
     database_url=settings.edges_database_url,
@@ -129,7 +129,7 @@ app.include_router(api_router)
 
 @app.on_event("shutdown")
 def shutdown():
-    logger.info("[app] Shutting down — closing connections")
+    logger.info("[app] Shutting down - closing connections")
     try:
         _edges_db.close()
     except Exception as e:

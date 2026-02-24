@@ -4,7 +4,7 @@ Mapbox Geocoding v5 service for Roam place search / autocomplete.
 Docs: https://docs.mapbox.com/api/search/geocoding/
 
 This is used for user-facing "search a place by name" queries (the PlaceSearchModal).
-Corridor POI data still uses the Overpass → Supabase pipeline — this is a separate concern.
+Corridor POI data still uses the Overpass → Supabase pipeline - this is a separate concern.
 """
 
 from __future__ import annotations
@@ -186,7 +186,7 @@ class MapboxGeocoding:
         query : str
             Free-text search string (e.g. "BP Servo Toowoomba").
         proximity : (lat, lng) | None
-            Bias results toward this point. Mapbox expects (lng, lat) on the wire —
+            Bias results toward this point. Mapbox expects (lng, lat) on the wire  - 
             this method accepts (lat, lng) for consistency with the rest of Roam.
         limit : int
             Max results (Mapbox allows 1–10, default 5 without paid plan features).

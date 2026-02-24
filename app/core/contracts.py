@@ -29,7 +29,7 @@ class BBox4(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Navigation — Maneuvers & Steps (turn-by-turn)
+# Navigation - Maneuvers & Steps (turn-by-turn)
 # ──────────────────────────────────────────────────────────────
 
 ManeuverType = Literal[
@@ -51,7 +51,7 @@ ManeuverModifier = Literal[
 class NavManeuver(BaseModel):
     type: ManeuverType = "turn"
     modifier: Optional[ManeuverModifier] = None
-    location: List[float]           # [lng, lat] — OSRM convention
+    location: List[float]           # [lng, lat] - OSRM convention
     bearing_before: int = 0
     bearing_after: int = 0
     exit: Optional[int] = None      # roundabout exit number
@@ -69,7 +69,7 @@ class NavStep(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Navigation — Core route models
+# Navigation - Core route models
 # ──────────────────────────────────────────────────────────────
 
 class NavRequest(BaseModel):
@@ -189,12 +189,12 @@ class CorridorGraphPack(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
-# Places — category taxonomy
+# Places - category taxonomy
 # ──────────────────────────────────────────────────────────────
 # Every category MUST map to at least one Overpass filter in
 # places.py _FALLBACK_FILTERS.  Grouped by traveller need.
 #
-# ESSENTIALS & SAFETY — the "survive the outback" tier
+# ESSENTIALS & SAFETY - the "survive the outback" tier
 #   fuel          Petrol/diesel stations
 #   ev_charging   Electric vehicle charge points
 #   rest_area     Roadside rest stops / driver reviver (fatigue!)
@@ -212,7 +212,7 @@ class CorridorGraphPack(BaseModel):
 #   laundromat    Laundromats / coin laundry (multi-day trips)
 #
 # FOOD & DRINK
-#   bakery        Bakeries (THE Aussie road trip stop — pies!)
+#   bakery        Bakeries (THE Aussie road trip stop - pies!)
 #   cafe          Cafés & coffee shops
 #   restaurant    Sit-down restaurants
 #   fast_food     Fast food / takeaway
@@ -252,7 +252,7 @@ class CorridorGraphPack(BaseModel):
 #   market        Markets (farmers, craft, weekend)
 #   park          Urban parks & gardens
 #
-# GEOCODING (from Mapbox forward search — not Overpass)
+# GEOCODING (from Mapbox forward search - not Overpass)
 #   address       Street address result
 #   place         Named place / locality result
 #   region        State / territory result
@@ -466,7 +466,7 @@ HazardKind = Literal["flood", "cyclone", "storm", "fire", "wind", "heat", "marin
 CapUrgency = Literal["immediate", "expected", "future", "past", "unknown"]
 CapCertainty = Literal["observed", "likely", "possible", "unlikely", "unknown"]
 
-# Route impact classification — computed client-side by intersecting alert
+# Route impact classification - computed client-side by intersecting alert
 # geometry with the route polyline buffer.
 RouteImpact = Literal[
     "blocks_route",     # closure/flood geometry intersects route within 500m

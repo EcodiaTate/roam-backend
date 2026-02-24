@@ -6,11 +6,11 @@ Supports:
   - QLD: Official QLD Traffic v2 events API + delta merge + GeoJSON feed fallback
   - NSW: TfNSW Live Traffic Hazards GeoJSON API (7 feed types)
   - VIC: VicRoads Data Exchange (unplanned disruptions v2, planned, emergency closures)
-  - SA:  Traffic SA road events GeoJSON (disabled — feed is 404 as of Feb 2026)
+  - SA:  Traffic SA road events GeoJSON (disabled - feed is 404 as of Feb 2026)
   - WA:  Main Roads WA ArcGIS road incidents (CC-BY 4.0)
   - NT:  NT Road Report obstructions + road conditions (roadreport.nt.gov.au)
 
-Source selection is automatic based on the query bbox — a Brisbane→Sydney route
+Source selection is automatic based on the query bbox - a Brisbane→Sydney route
 will query QLD + NSW feeds; a Melbourne→Adelaide route queries VIC + SA.
 A Perth→Broome route queries WA; an Alice Springs→Darwin route queries NT.
 """
@@ -141,7 +141,7 @@ def _append_query_params(url: str, params: Dict[str, str]) -> str:
 
 
 # ══════════════════════════════════════════════════════════════
-# Classification — structured fields first, text fallback
+# Classification - structured fields first, text fallback
 # ══════════════════════════════════════════════════════════════
 
 # Maps structured event_type / mainCategory values to (TrafficType, TrafficSeverity).
@@ -187,7 +187,7 @@ _STRUCTURED_TYPE_MAP: Dict[str, Tuple[str, str]] = {
 
 # Expanded text-based keyword classification (Australian terminology)
 _TEXT_PATTERNS: List[Tuple[List[str], str, str]] = [
-    # Closures — diverse Australian phrasing
+    # Closures - diverse Australian phrasing
     (["road closed", "closure", "closed", "shut", "impassable", "blocked",
       "no access", "cut off", "road closure"], "closure", "major"),
     # Flooding
@@ -219,7 +219,7 @@ def _classify(headline: str, desc: str, structured_type: Optional[str] = None) -
         key = structured_type.strip().lower()
         if key in _STRUCTURED_TYPE_MAP:
             return _STRUCTURED_TYPE_MAP[key]
-        # Partial match — check if any structured key is a substring
+        # Partial match - check if any structured key is a substring
         for skey, val in _STRUCTURED_TYPE_MAP.items():
             if skey in key or key in skey:
                 return val
@@ -235,7 +235,7 @@ def _classify(headline: str, desc: str, structured_type: Optional[str] = None) -
 
 
 # ══════════════════════════════════════════════════════════════
-# QLD Traffic — v2 events API with delta merge
+# QLD Traffic - v2 events API with delta merge
 # ══════════════════════════════════════════════════════════════
 
 class _QldTrafficCache:
@@ -480,7 +480,7 @@ class _QldTrafficProvider:
 
 
 # ══════════════════════════════════════════════════════════════
-# NSW Traffic — TfNSW Live Traffic Hazards GeoJSON API
+# NSW Traffic - TfNSW Live Traffic Hazards GeoJSON API
 # ══════════════════════════════════════════════════════════════
 
 class _NswTrafficProvider:
@@ -574,7 +574,7 @@ class _NswTrafficProvider:
         if not api_key:
             api_key = _env("NSW_TRAFFIC_API_KEY") or ""
         if not api_key.strip():
-            warnings.append("traffic:nsw skipped — no API key (set NSW_TRAFFIC_API_KEY)")
+            warnings.append("traffic:nsw skipped - no API key (set NSW_TRAFFIC_API_KEY)")
             return []
 
         base_url = settings.nsw_traffic_base_url.rstrip("/")
@@ -610,7 +610,7 @@ class _NswTrafficProvider:
 
 
 # ══════════════════════════════════════════════════════════════
-# VIC Traffic — VicRoads Data Exchange API
+# VIC Traffic - VicRoads Data Exchange API
 # ══════════════════════════════════════════════════════════════
 
 class _VicTrafficProvider:
@@ -758,7 +758,7 @@ class _VicTrafficProvider:
         if not api_key:
             api_key = _env("VIC_TRAFFIC_API_KEY") or ""
         if not api_key.strip():
-            warnings.append("traffic:vic skipped — no API key (set VIC_TRAFFIC_API_KEY)")
+            warnings.append("traffic:vic skipped - no API key (set VIC_TRAFFIC_API_KEY)")
             return []
 
         items: List[TrafficEvent] = []
@@ -789,7 +789,7 @@ class _VicTrafficProvider:
 
 
 # ══════════════════════════════════════════════════════════════
-# SA Traffic — Traffic SA GeoJSON events
+# SA Traffic - Traffic SA GeoJSON events
 # ══════════════════════════════════════════════════════════════
 
 class _SaTrafficProvider:
@@ -882,7 +882,7 @@ class _SaTrafficProvider:
 
 
 # ══════════════════════════════════════════════════════════════
-# WA Traffic — Main Roads WA ArcGIS road incidents (CC-BY 4.0)
+# WA Traffic - Main Roads WA ArcGIS road incidents (CC-BY 4.0)
 # ══════════════════════════════════════════════════════════════
 
 class _WaTrafficProvider:
@@ -939,7 +939,7 @@ class _WaTrafficProvider:
         suburb = str(props.get("Suburb") or props.get("Location") or "").strip()
         comments = str(props.get("Comments") or props.get("Description") or "").strip()
 
-        # Timestamps — ArcGIS epoch milliseconds or ISO strings
+        # Timestamps - ArcGIS epoch milliseconds or ISO strings
         start_raw = props.get("ClosureStartDate") or props.get("StartDate") or None
         end_raw = props.get("ClosureEndDate") or props.get("EndDate") or None
 
@@ -960,7 +960,7 @@ class _WaTrafficProvider:
             parts.append(road_name)
         if suburb:
             parts.append(suburb)
-        headline = " — ".join(parts) if parts else "WA road incident"
+        headline = " - ".join(parts) if parts else "WA road incident"
 
         # Classify: try structured IncidentType first, then ClosureTyp, then text
         typ, sev = "hazard", "info"
@@ -1001,7 +1001,7 @@ class _WaTrafficProvider:
 
     @staticmethod
     def _parse_arcgis_date(val: Any) -> Optional[str]:
-        """Parse ArcGIS date — either epoch millis (int) or ISO string."""
+        """Parse ArcGIS date - either epoch millis (int) or ISO string."""
         if val is None:
             return None
         if isinstance(val, (int, float)) and val > 1_000_000_000:
@@ -1052,7 +1052,7 @@ class _WaTrafficProvider:
 
 
 # ══════════════════════════════════════════════════════════════
-# NT Traffic — NT Road Report obstructions + road conditions
+# NT Traffic - NT Road Report obstructions + road conditions
 # ══════════════════════════════════════════════════════════════
 
 class _NtTrafficProvider:
@@ -1070,7 +1070,7 @@ class _NtTrafficProvider:
     restrictionType values observed:
       Road Closed, Impassable, With Caution, Weight And Or Vehicle Type Restriction
 
-    This also serves as the outback road conditions overlay —
+    This also serves as the outback road conditions overlay  - 
     covers Tanami Road, Larapinta Drive, Plenty Highway, Stuart Highway, etc.
     """
 
@@ -1149,7 +1149,7 @@ class _NtTrafficProvider:
             parts.append(obstruction_type)
         if road_name:
             parts.append(road_name)
-        headline = " — ".join(parts) if parts else "NT road obstruction"
+        headline = " - ".join(parts) if parts else "NT road obstruction"
 
         # Build description
         desc_parts: List[str] = []
@@ -1258,7 +1258,7 @@ class _NtTrafficProvider:
 
 
 # ══════════════════════════════════════════════════════════════
-# Main Traffic service — state-aware orchestrator
+# Main Traffic service - state-aware orchestrator
 # ══════════════════════════════════════════════════════════════
 
 # Provider singletons
@@ -1277,7 +1277,7 @@ _STATE_PROVIDERS: Dict[str, Any] = {
     "sa":  _SA,
     "wa":  _WA,
     "nt":  _NT,
-    # TAS — no traffic JSON API found. Hazards only via BOM + TheList ArcGIS.
+    # TAS - no traffic JSON API found. Hazards only via BOM + TheList ArcGIS.
 }
 
 
@@ -1327,7 +1327,7 @@ class Traffic:
         items: List[TrafficEvent] = []
 
         if not query_states:
-            # No states in bbox — probably offshore or outside Australia
+            # No states in bbox - probably offshore or outside Australia
             pack = TrafficOverlay(
                 traffic_key=traffic_key,
                 bbox=bbox,

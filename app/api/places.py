@@ -40,7 +40,7 @@ def get_corridor_service() -> Corridor:
 
 
 # ──────────────────────────────────────────────────────────────
-# Default category sets — tiered by use case
+# Default category sets - tiered by use case
 # ──────────────────────────────────────────────────────────────
 
 _CORRIDOR_DEFAULT_CATS: list[PlaceCategory] = [
@@ -106,7 +106,7 @@ def places_search(
                 bbox=bbox_tuple,
             )
         except RuntimeError as exc:
-            logger.error("mapbox_search_failed: %s — falling back to overpass", exc)
+            logger.error("mapbox_search_failed: %s - falling back to overpass", exc)
 
     if not req.bbox and not (req.center and req.radius_m) and not req.query:
         bad_request("bad_places_request", "Provide bbox or center+radius_m or query")
@@ -152,7 +152,7 @@ def places_corridor(
 
     # ── Fallback: corridor pack bbox ─────────────────────────
     logger.warning(
-        "places_corridor: NO geometry — falling back to corridor bbox. "
+        "places_corridor: NO geometry - falling back to corridor bbox. "
         "This produces destination-biased results!"
     )
     cpack = corridor.get(req.corridor_key)

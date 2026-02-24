@@ -166,7 +166,7 @@ def _sample_polyline(
     if len(samples) < expected_min and dist_acc > interval_m * 2:
         print(
             f"[_sample_polyline] WARNING: expected ~{expected_min} samples "
-            f"but got {len(samples)} — falling back to uniform point pick"
+            f"but got {len(samples)} - falling back to uniform point pick"
         )
         n_want = max(2, int(dist_acc / 1000.0 / interval_km) + 2)
         step = max(1, len(pts) // n_want)
@@ -676,9 +676,9 @@ def _synthetic_name(
             base = f"{base} (Accessible)"
 
     if locality:
-        return f"{base} — {locality}"
+        return f"{base} - {locality}"
     elif street:
-        return f"{base} — {street}"
+        return f"{base} - {street}"
     else:
         return base
 
@@ -904,7 +904,7 @@ def _corridor_places_key(
 
 class Places:
     """
-    Places service — OVERPASS-FIRST corridor search.
+    Places service - OVERPASS-FIRST corridor search.
 
     For corridor searches (search_corridor_polyline), the read order is:
       1) Overpass around query (distributed along the actual route)
@@ -984,13 +984,13 @@ class Places:
         return pack
 
     # ──────────────────────────────────────────────────────────
-    # Corridor-aware route search — OVERPASS FIRST
+    # Corridor-aware route search - OVERPASS FIRST
     # ──────────────────────────────────────────────────────────
     #
     # The critical change from v2: Overpass runs FIRST, then
     # local/supa supplement.  Previously local ran first and if it
     # had enough destination-area items (>70% of limit), Overpass
-    # was skipped — meaning start and mid-route got nothing.
+    # was skipped - meaning start and mid-route got nothing.
     # ──────────────────────────────────────────────────────────
 
     def search_corridor_polyline(
@@ -1040,14 +1040,14 @@ class Places:
                 self._supa_upsert_best_effort(subset, source="cached_pack")
             return pack
 
-        print(f"[Places] corridor cache MISS — running full pipeline")
+        print(f"[Places] corridor cache MISS - running full pipeline")
 
         # ── 1) Sample route ──────────────────────────────────
         samples = _sample_polyline(
             polyline6, sample_interval_km, include_endpoints=True,
         )
         if not samples:
-            print("[Places] corridor: no samples from polyline — returning empty")
+            print("[Places] corridor: no samples from polyline - returning empty")
             empty_req = PlacesRequest(
                 bbox=BBox4(minLng=0, minLat=0, maxLng=0, maxLat=0),
                 categories=categories,
@@ -1076,7 +1076,7 @@ class Places:
             return d <= buffer_m
 
         # ──────────────────────────────────────────────────────
-        # STEP 2: OVERPASS AROUND QUERY — RUNS FIRST
+        # STEP 2: OVERPASS AROUND QUERY - RUNS FIRST
         # ──────────────────────────────────────────────────────
         # This is the whole point of corridor search: query a true
         # buffer along the actual road, from start to end.  Running

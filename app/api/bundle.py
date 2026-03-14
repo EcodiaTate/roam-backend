@@ -74,16 +74,17 @@ async def build_bundle(
     buffer_m = int(req.buffer_m or 15000)
     max_edges = int(req.max_edges or 350000)
 
-    # 1) Ensure corridor exists
-    cmeta = corridor.ensure(
+    # 1) Ensure corridor exists — use the pack returned by ensure() directly
+    #    instead of a redundant get() which can miss due to SQLite WAL read staleness.
+    ensure_result = corridor.ensure(
         route_key=req.route_key,
         route_polyline6=req.geometry,
         profile=profile,
         buffer_m=buffer_m,
         max_edges=max_edges,
-    ).meta
-
-    cpack = corridor.get(cmeta.corridor_key)
+    )
+    cmeta = ensure_result.meta
+    cpack = ensure_result.pack or corridor.get(cmeta.corridor_key)
     if not cpack:
         not_found("corridor_missing", f"no corridor pack found for {cmeta.corridor_key}")
 

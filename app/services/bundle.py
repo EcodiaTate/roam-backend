@@ -5,30 +5,22 @@ import zipfile
 from dataclasses import dataclass
 from typing import Optional
 
-import orjson
-
-from app.core.contracts import (
-    OfflineBundleManifest,
-    NavPack,
-    CorridorGraphPack,
-    PlacesPack,
-    TrafficOverlay,
-    HazardOverlay,
-)
+from app.core.contracts import OfflineBundleManifest
 from app.core.errors import not_found
 from app.core.storage import (
     put_manifest,
     get_manifest,
-    get_nav_pack,
-    get_corridor_pack,
-    get_places_pack,
-    get_traffic_pack,
-    get_hazards_pack,
+    get_manifest_raw,
     get_nav_pack_bytes,
     get_corridor_pack_bytes,
     get_places_pack_bytes,
     get_traffic_pack_bytes,
     get_hazards_pack_bytes,
+    get_nav_pack_raw,
+    get_corridor_pack_raw,
+    get_places_pack_raw,
+    get_traffic_pack_raw,
+    get_hazards_pack_raw,
 )
 from app.core.time import utc_now_iso
 
@@ -100,61 +92,55 @@ class Bundle:
         return m
 
     def build_zip(self, *, plan_id: str) -> BundleZipResult:
+        # Read manifest to get the keys for each pack.
         manifest_row = get_manifest(self.conn, plan_id)
         if not manifest_row:
             not_found("bundle_missing", f"no manifest for plan_id {plan_id}")
         manifest = OfflineBundleManifest.model_validate(manifest_row)
 
-        nav_row = get_nav_pack(self.conn, manifest.route_key)
-        if not nav_row:
+        # Fetch raw JSON bytes directly from SQLite — no deserialize/re-serialize round-trip.
+        b_manifest = get_manifest_raw(self.conn, plan_id) or b""
+
+        b_nav = get_nav_pack_raw(self.conn, manifest.route_key)
+        if not b_nav:
             not_found("navpack_missing", f"no navpack cached for route_key {manifest.route_key}")
-        navpack = NavPack.model_validate(nav_row)
 
         if not manifest.corridor_key:
             not_found("corridor_missing", "manifest has no corridor_key")
-        corr_row = get_corridor_pack(self.conn, manifest.corridor_key)
-        if not corr_row:
+        b_corr = get_corridor_pack_raw(self.conn, manifest.corridor_key)
+        if not b_corr:
             not_found("corridor_missing", f"no corridor cached for corridor_key {manifest.corridor_key}")
-        corridor = CorridorGraphPack.model_validate(corr_row)
 
-        places: Optional[PlacesPack] = None
+        b_places: Optional[bytes] = None
         if manifest.places_key:
-            places_row = get_places_pack(self.conn, manifest.places_key)
-            if not places_row:
+            b_places = get_places_pack_raw(self.conn, manifest.places_key)
+            if not b_places:
                 not_found("places_missing", f"no places cached for places_key {manifest.places_key}")
-            places = PlacesPack.model_validate(places_row)
 
-        traffic: Optional[TrafficOverlay] = None
+        b_traffic: Optional[bytes] = None
         if manifest.traffic_key:
-            traffic_row = get_traffic_pack(self.conn, manifest.traffic_key)
-            if not traffic_row:
+            b_traffic = get_traffic_pack_raw(self.conn, manifest.traffic_key)
+            if not b_traffic:
                 not_found("traffic_missing", f"no traffic cached for traffic_key {manifest.traffic_key}")
-            traffic = TrafficOverlay.model_validate(traffic_row)
 
-        hazards: Optional[HazardOverlay] = None
+        b_hazards: Optional[bytes] = None
         if manifest.hazards_key:
-            hazards_row = get_hazards_pack(self.conn, manifest.hazards_key)
-            if not hazards_row:
+            b_hazards = get_hazards_pack_raw(self.conn, manifest.hazards_key)
+            if not b_hazards:
                 not_found("hazards_missing", f"no hazards cached for hazards_key {manifest.hazards_key}")
-            hazards = HazardOverlay.model_validate(hazards_row)
 
-        b_manifest = orjson.dumps(manifest.model_dump())
-        b_nav = orjson.dumps(navpack.model_dump())
-        b_corr = orjson.dumps(corridor.model_dump())
-        b_places = orjson.dumps(places.model_dump()) if places else b""
-        b_traffic = orjson.dumps(traffic.model_dump()) if traffic else b""
-        b_hazards = orjson.dumps(hazards.model_dump()) if hazards else b""
-
+        # compresslevel=1 is fastest DEFLATE (Zlib level 1: speed >> size).
+        # JSON compresses well at any level; level 1 is ~3-5× faster than default 6.
         buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1) as z:
             z.writestr("manifest.json", b_manifest)
             z.writestr("navpack.json", b_nav)
             z.writestr("corridor.json", b_corr)
-            if places:
+            if b_places:
                 z.writestr("places.json", b_places)
-            if traffic:
+            if b_traffic:
                 z.writestr("traffic.json", b_traffic)
-            if hazards:
+            if b_hazards:
                 z.writestr("hazards.json", b_hazards)
 
         zip_bytes = buf.getvalue()
@@ -166,7 +152,7 @@ class Bundle:
             bytes_manifest=len(b_manifest),
             bytes_navpack=len(b_nav),
             bytes_corridor=len(b_corr),
-            bytes_places=(len(b_places) if places else 0),
-            bytes_traffic=(len(b_traffic) if traffic else 0),
-            bytes_hazards=(len(b_hazards) if hazards else 0),
+            bytes_places=(len(b_places) if b_places else 0),
+            bytes_traffic=(len(b_traffic) if b_traffic else 0),
+            bytes_hazards=(len(b_hazards) if b_hazards else 0),
         )

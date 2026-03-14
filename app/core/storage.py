@@ -335,6 +335,46 @@ def get_hazards_pack(conn: sqlite3.Connection, hazards_key: str) -> Optional[dic
 
 
 # ──────────────────────────────────────────────────────────────
+# Raw-bytes accessors (used by build_zip to skip JSON round-trip)
+# ──────────────────────────────────────────────────────────────
+
+def get_nav_pack_raw(conn: sqlite3.Connection, route_key: str) -> Optional[bytes]:
+    cur = conn.execute("SELECT pack_json FROM nav_packs WHERE route_key=?;", (route_key,))
+    row = cur.fetchone()
+    return bytes(row[0]) if row else None
+
+
+def get_corridor_pack_raw(conn: sqlite3.Connection, corridor_key: str) -> Optional[bytes]:
+    cur = conn.execute("SELECT pack_json FROM corridor_packs WHERE corridor_key=?;", (corridor_key,))
+    row = cur.fetchone()
+    return bytes(row[0]) if row else None
+
+
+def get_places_pack_raw(conn: sqlite3.Connection, places_key: str) -> Optional[bytes]:
+    cur = conn.execute("SELECT pack_json FROM places_packs WHERE places_key=?;", (places_key,))
+    row = cur.fetchone()
+    return bytes(row[0]) if row else None
+
+
+def get_traffic_pack_raw(conn: sqlite3.Connection, traffic_key: str) -> Optional[bytes]:
+    cur = conn.execute("SELECT pack_json FROM traffic_packs WHERE traffic_key=?;", (traffic_key,))
+    row = cur.fetchone()
+    return bytes(row[0]) if row else None
+
+
+def get_hazards_pack_raw(conn: sqlite3.Connection, hazards_key: str) -> Optional[bytes]:
+    cur = conn.execute("SELECT pack_json FROM hazard_packs WHERE hazards_key=?;", (hazards_key,))
+    row = cur.fetchone()
+    return bytes(row[0]) if row else None
+
+
+def get_manifest_raw(conn: sqlite3.Connection, plan_id: str) -> Optional[bytes]:
+    cur = conn.execute("SELECT manifest_json FROM manifests WHERE plan_id=?;", (plan_id,))
+    row = cur.fetchone()
+    return bytes(row[0]) if row else None
+
+
+# ──────────────────────────────────────────────────────────────
 # Manifests
 # ──────────────────────────────────────────────────────────────
 

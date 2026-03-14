@@ -326,6 +326,18 @@ class Settings(BaseSettings):
     guide_timeout_s: float = Field(default=30.0, alias="GUIDE_TIMEOUT_S")
 
     # ──────────────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────
+    # Stripe
+    # ──────────────────────────────────────────────────────────────
+    stripe_secret_key: str = Field(default="", alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: str = Field(default="", alias="STRIPE_WEBHOOK_SECRET")
+    stripe_price_id: str = Field(default="", alias="NEXT_PUBLIC_STRIPE_PRICE_ID")
+
+    # ──────────────────────────────────────────────────────────────
+    # RevenueCat webhook
+    # ──────────────────────────────────────────────────────────────
+    revenuecat_webhook_secret: str = Field(default="", alias="REVENUECAT_WEBHOOK_SECRET")
+
     # Guide Web Search
     # Gives the guide live web search so it can answer about current
     # events, road conditions, new businesses, etc.

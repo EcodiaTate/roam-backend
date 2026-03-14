@@ -9,6 +9,8 @@ from .places import router as places_router
 from .bundle import router as bundle_router
 from .sync import router as sync_router
 from .guide import router as guide_router
+from .stripe import router as stripe_router
+from .trips import router as trips_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
@@ -18,3 +20,5 @@ api_router.include_router(nav_router)
 api_router.include_router(places_router)
 api_router.include_router(bundle_router)
 api_router.include_router(sync_router)
+api_router.include_router(stripe_router)
+api_router.include_router(trips_router)

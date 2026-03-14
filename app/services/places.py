@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
+import collections
 import concurrent.futures
 import hashlib
 import logging
@@ -8,6 +9,7 @@ import math
 import time
 import random
 import re
+import functools
 
 import httpx
 
@@ -761,6 +763,32 @@ def _element_to_item(el: Dict[str, Any]) -> Optional[PlaceItem]:
     if not (tags.get("name") or tags.get("brand") or tags.get("operator")):
         extra["synthetic_name"] = True
 
+    # ── Enrichment: wikidata, wikipedia, thumbnail ────────────
+    wd = tags.get("wikidata")
+    if wd and isinstance(wd, str):
+        extra["wikidata"] = str(wd)[:20]
+    wp = tags.get("wikipedia")
+    if wp and isinstance(wp, str):
+        extra["wikipedia"] = str(wp)[:200]
+
+    # Resolve a thumbnail URL from wikimedia_commons / image / wikidata
+    thumb = _resolve_thumbnail(tags)
+    if thumb:
+        extra["thumbnail_url"] = thumb
+
+    # Wheelchair accessibility
+    wc = tags.get("wheelchair")
+    if wc in ("yes", "limited"):
+        extra["wheelchair"] = wc
+
+    # Stars / rating (some OSM entries have tourism:stars)
+    stars = tags.get("stars") or tags.get("tourism:stars")
+    if stars:
+        try:
+            extra["stars"] = int(stars)
+        except (ValueError, TypeError):
+            pass
+
     return PlaceItem(
         id=f"osm:{osm_type}:{osm_id}",
         name=str(name),
@@ -954,6 +982,271 @@ def _bundle_places_budget(route_km: float) -> int:
     return int(max(350, min(2500, raw)))
 
 
+# ──────────────────────────────────────────────────────────────
+# Relevance scoring — ranks places within each tier so the
+# most useful/notable items are accepted first.
+# ──────────────────────────────────────────────────────────────
+
+# Category-intrinsic importance weights.  Higher = more likely to be a
+# meaningful stop vs an anonymous node.
+_CATEGORY_IMPORTANCE: Dict[str, float] = {
+    # Nature highlights — these are *why* people take road trips
+    "national_park": 5.0, "waterfall": 4.5, "hot_spring": 4.5,
+    "swimming_hole": 4.0, "viewpoint": 4.0, "beach": 3.5, "hiking": 3.0,
+    # Culture — destination-worthy attractions
+    "museum": 4.5, "heritage": 4.0, "gallery": 3.5, "attraction": 3.5,
+    "zoo": 3.5, "theme_park": 3.5, "winery": 3.0, "brewery": 3.0,
+    # Towns are anchor points
+    "town": 3.0, "visitor_info": 2.5,
+    # Essential infrastructure — always valuable but not "destination"
+    "fuel": 2.0, "ev_charging": 2.0, "hospital": 2.0, "mechanic": 1.5,
+    "grocery": 1.5, "pharmacy": 1.5, "camp": 2.5, "hotel": 2.0,
+    "motel": 2.0, "hostel": 2.0,
+    # Nice-to-have
+    "restaurant": 1.5, "cafe": 1.5, "pub": 1.5, "bakery": 1.5,
+    "fast_food": 1.0, "bar": 1.0, "rest_area": 1.0, "toilet": 0.5,
+    "water": 1.0, "dump_point": 0.5, "atm": 0.5, "laundromat": 0.5,
+    "picnic": 1.0, "park": 1.0, "market": 1.5, "pool": 1.5,
+    "playground": 1.0,
+}
+
+
+def _score_place(
+    item: PlaceItem,
+    landmark_names: Set[str] | None = None,
+) -> float:
+    """
+    Score a PlaceItem for bundle relevance.  Higher = more worth including.
+
+    Signals:
+      - Category importance (some categories are inherently more notable)
+      - Data richness (named, has website/phone/hours → real establishment)
+      - Landmark match (name appears in regional knowledge → known highlight)
+      - Wikidata presence (notable enough to be in Wikipedia/Wikidata)
+    """
+    score = 0.0
+    extra = item.extra or {}
+
+    # 1. Category base weight
+    score += _CATEGORY_IMPORTANCE.get(str(item.category), 1.0)
+
+    # 2. Data richness signals — real, well-documented places
+    if not extra.get("synthetic_name"):
+        score += 2.0  # has a real name
+    if extra.get("website"):
+        score += 1.5
+    if extra.get("phone"):
+        score += 1.0
+    if extra.get("opening_hours"):
+        score += 1.0
+    if extra.get("description"):
+        score += 0.5
+    if extra.get("brand"):
+        score += 0.5  # known chain = reliable
+    if extra.get("address"):
+        score += 0.3
+
+    # 3. Wikidata / Wikipedia — strong notability signal
+    if extra.get("wikidata"):
+        score += 3.0
+    if extra.get("wikipedia"):
+        score += 2.0
+
+    # 4. Landmark boost — match against known regional highlights
+    if landmark_names and item.name:
+        name_lower = item.name.lower()
+        for landmark in landmark_names:
+            if landmark in name_lower or name_lower in landmark:
+                score += 5.0
+                break
+
+    # 5. Amenity richness for camps/rest areas
+    if item.category in ("camp", "rest_area"):
+        if extra.get("has_water"):
+            score += 0.5
+        if extra.get("has_toilets"):
+            score += 0.5
+        if extra.get("powered_sites"):
+            score += 0.5
+        if extra.get("free"):
+            score += 0.5
+
+    # 6. Fuel completeness
+    if item.category == "fuel":
+        fuel_types = extra.get("fuel_types") or []
+        if len(fuel_types) >= 3:
+            score += 1.0
+        elif len(fuel_types) >= 1:
+            score += 0.5
+
+    return score
+
+
+# ──────────────────────────────────────────────────────────────
+# Landmark extraction from regional knowledge
+# ──────────────────────────────────────────────────────────────
+
+# Regex to extract proper-noun landmark names from the region knowledge text.
+# Matches capitalized multi-word names (2-6 words) that aren't sentence starters.
+_LANDMARK_PATTERN = re.compile(
+    r"(?<=[:\.\—–,])\s*"              # preceded by punctuation
+    r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,5})"  # 1-6 capitalized words
+    r"(?:\s*(?:NP|National Park|Museum|Gallery|Falls|Gorge|Beach|"
+    r"Lookout|Walk|Trail|Cave|Pool|Springs?|Range|Island|"
+    r"Reef|Rocks?|Bridge|Market|Sanctuary|Reserve|Conservation Park))?"
+)
+
+
+@functools.lru_cache(maxsize=1)
+def _load_all_landmark_names() -> Dict[str, Set[str]]:
+    """
+    Extract notable place names from each region's knowledge text.
+    Returns {region_id: {lowercase landmark name, ...}}.
+    """
+    try:
+        from app.services.guide_data import get_regions
+        regions = get_regions()
+    except Exception:
+        return {}
+
+    result: Dict[str, Set[str]] = {}
+    for r in regions:
+        rid = r.get("id", "")
+        text = r.get("knowledge", "")
+        names: Set[str] = set()
+
+        # Extract from explicit mentions (words before parenthetical descriptions,
+        # named attractions after colons/dashes)
+        for m in _LANDMARK_PATTERN.finditer(text):
+            candidate = m.group(0).strip()
+            # Skip very short or generic terms
+            if len(candidate) >= 5 and candidate.lower() not in {
+                "the", "this", "that", "near", "from", "with", "most",
+                "best", "book", "carry", "check", "drive", "allow",
+                "watch", "avoid", "summer", "winter", "spring", "autumn",
+                "excellent", "spectacular", "stunning", "extraordinary",
+                "beautiful", "brilliant", "genuine", "deeply", "dramatically",
+                "close", "closed", "contact", "distances", "guided",
+                "confronting", "cultural", "artesian", "dozens", "great",
+                "hinterland", "even", "every", "never", "serious",
+                "including", "between", "about", "after", "before",
+                "above", "below", "where", "which", "worth", "along",
+                "around", "across", "through", "their", "these",
+                "those", "other", "caves", "cellar", "gives", "catch",
+                "fuel", "bore", "bill", "cash", "devil", "base",
+            }:
+                names.add(candidate.lower())
+
+        # Also grab text between bold markers or inside quotes if present
+        # and specifically named places (Cape X, Mt X, Lake X, etc.)
+        for pattern in [
+            r"((?:Cape|Mt|Mount|Lake|Port|Point)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
+            r"((?:Twelve|Three)\s+[A-Z][a-z]+)",
+            r"([A-Z][a-z]+\s+(?:Falls|Gorge|Beach|Bay|Creek|River|Island|Ranges?|Pool|Head|Gap|Rock|Rocks|Springs?))",
+        ]:
+            for m2 in re.finditer(pattern, text):
+                name = m2.group(1).strip()
+                if len(name) >= 4:
+                    names.add(name.lower())
+
+        if names:
+            result[rid] = names
+
+    return result
+
+
+def _landmarks_for_route(
+    samples: List[Tuple[float, float]],
+) -> Set[str]:
+    """
+    Determine which regions a route passes through, then return the union
+    of all landmark names for those regions.
+    """
+    all_landmarks = _load_all_landmark_names()
+    if not all_landmarks:
+        return set()
+
+    try:
+        from app.services.guide_data import get_regions
+        regions = get_regions()
+    except Exception:
+        return set()
+
+    # Find which regions the route samples intersect
+    matched_names: Set[str] = set()
+    for r in regions:
+        bbox = r.get("bbox", {})
+        s, n = bbox.get("s", -90), bbox.get("n", 90)
+        w, e = bbox.get("w", -180), bbox.get("e", 180)
+        rid = r.get("id", "")
+        if rid not in all_landmarks:
+            continue
+        for lat, lng in samples:
+            if s <= lat <= n and w <= lng <= e:
+                matched_names.update(all_landmarks[rid])
+                break  # this region matched, move to next
+
+    return matched_names
+
+
+# ──────────────────────────────────────────────────────────────
+# Wikimedia Commons thumbnail resolution
+# ──────────────────────────────────────────────────────────────
+
+_WIKI_THUMB_WIDTH = 400  # px — small enough for bundles, big enough to look good
+
+_COMMONS_URL_TEMPLATE = (
+    "https://commons.wikimedia.org/w/thumb.php?f={filename}&w={width}"
+)
+
+
+def _wikimedia_thumb_url(filename: str, width: int = _WIKI_THUMB_WIDTH) -> str:
+    """
+    Build a Wikimedia Commons thumbnail URL from a filename.
+    OSM `image` or `wikimedia_commons` tags often contain
+    "File:Example.jpg" or just "Example.jpg".
+    """
+    filename = filename.strip()
+    if filename.startswith("File:"):
+        filename = filename[5:]
+    # URL-encode spaces
+    filename = filename.replace(" ", "%20")
+    return _COMMONS_URL_TEMPLATE.format(filename=filename, width=width)
+
+
+def _resolve_thumbnail(tags: Dict[str, Any]) -> Optional[str]:
+    """
+    Try to derive a small thumbnail URL from OSM tags.
+    Priority: wikimedia_commons > image > wikidata (via thumb API).
+    Returns a URL string or None.  Never makes network calls — uses
+    deterministic URL construction only.
+    """
+    # 1. Direct Wikimedia Commons file reference
+    wmc = tags.get("wikimedia_commons") or tags.get("image")
+    if wmc and isinstance(wmc, str):
+        wmc = wmc.strip()
+        # Only resolve Wikimedia/Commons references, not arbitrary URLs
+        if wmc.startswith("File:") or wmc.startswith("Category:"):
+            if wmc.startswith("File:"):
+                return _wikimedia_thumb_url(wmc)
+        elif not wmc.startswith("http"):
+            # Bare filename — assume Commons
+            return _wikimedia_thumb_url(wmc)
+        elif "wikimedia.org" in wmc or "wikipedia.org" in wmc:
+            # Already a URL — pass through (client will fetch directly)
+            return wmc[:500]
+
+    # 2. Wikidata entity → use Special:FilePath (auto-resolves to main image)
+    wd = tags.get("wikidata")
+    if wd and isinstance(wd, str) and wd.startswith("Q"):
+        return (
+            f"https://commons.wikimedia.org/wiki/Special:FilePath/"
+            f"?width={_WIKI_THUMB_WIDTH}&wptype=entity&wpvalue={wd}"
+        )
+
+    return None
+
+
 def _route_km_from_polyline(poly6: str) -> float:
     """Approximate route length in km by summing decoded segment distances."""
     pts = decode_polyline6(poly6)
@@ -973,22 +1266,23 @@ def _cluster_cap_tier2(
     samples: List[Tuple[float, float]],
     segment_km: float,
     per_segment: int,
+    landmark_names: Set[str] | None = None,
 ) -> List[PlaceItem]:
     """
     Prevent a dense city from eating all tier-2 slots.
 
     Divides the route into `segment_km`-length buckets (keyed by the index of
-    the nearest sample point) and keeps at most `per_segment` items per bucket.
-    Items are accepted in the order they arrive (Overpass/local order already
-    loosely distance-sorted), so quality degrades gracefully.
+    the nearest sample point).  Within each bucket:
+      1. Items are scored by relevance (_score_place).
+      2. Category diversity is enforced: no single category gets more than
+         half the slots (rounded up), ensuring a mix of dining/nature/culture.
+      3. Highest-scoring items are picked first within those constraints.
     """
     if not samples or segment_km <= 0 or per_segment <= 0:
         return items
 
-    # Each sample point (placed every ~8 km) forms its own bucket.
-    # Items nearest the same sample point compete for `per_segment` slots.
-    bucket_counts: Dict[int, int] = {}
-    result: List[PlaceItem] = []
+    # Assign each item to its nearest sample bucket
+    buckets: Dict[int, List[Tuple[float, PlaceItem]]] = collections.defaultdict(list)
 
     for it in items:
         best_idx = 0
@@ -998,10 +1292,34 @@ def _cluster_cap_tier2(
             if d < best_d:
                 best_d = d
                 best_idx = idx
+        score = _score_place(it, landmark_names)
+        buckets[best_idx].append((score, it))
 
-        if bucket_counts.get(best_idx, 0) < per_segment:
-            result.append(it)
-            bucket_counts[best_idx] = bucket_counts.get(best_idx, 0) + 1
+    # Within each bucket: sort by score descending, then pick with diversity
+    max_per_cat = max(1, (per_segment + 1) // 2)  # no category > half the slots
+    result: List[PlaceItem] = []
+
+    for bucket_items in buckets.values():
+        bucket_items.sort(key=lambda x: x[0], reverse=True)
+        cat_counts: Dict[str, int] = {}
+        picked: List[PlaceItem] = []
+        # First pass: pick diverse high-scorers
+        for score, it in bucket_items:
+            if len(picked) >= per_segment:
+                break
+            cat = str(it.category)
+            if cat_counts.get(cat, 0) < max_per_cat:
+                picked.append(it)
+                cat_counts[cat] = cat_counts.get(cat, 0) + 1
+        # Second pass: fill remaining slots from unpicked items by score
+        if len(picked) < per_segment:
+            picked_ids = {it.id for it in picked}
+            for score, it in bucket_items:
+                if len(picked) >= per_segment:
+                    break
+                if it.id not in picked_ids:
+                    picked.append(it)
+        result.extend(picked)
 
     return result
 
@@ -1146,7 +1464,7 @@ class Places:
             _BUNDLE_TIER1_BUFFER_KM,  # use the wider radius as the cache key discriminator
             all_cats_str,
             total_budget,
-            self.algo_version + ".bundle_v1",
+            self.algo_version + ".bundle_v2_scored",
         )
 
         cached = get_places_pack(self.cache_conn, pkey)
@@ -1296,43 +1614,53 @@ class Places:
                 logger.warning("search_bundle store upsert FAILED: %r", e)
             self._supa_upsert_best_effort(all_fetched, source="bundle_overpass")
 
+        # ── Resolve regional landmarks for scoring ────────────
+        landmark_names = _landmarks_for_route(samples)
+        if landmark_names:
+            logger.info(
+                "search_bundle: %d landmark names from %d route regions",
+                len(landmark_names),
+                len(landmark_names),  # approximate; exact region count not needed
+            )
+
         # ═══════════════════════════════════════════════════════
-        # TIER 1 — filter + accept from parallel results
-        # Critical infra (fuel/EV) accepted first from their dedicated query.
+        # TIER 1 — collect all candidates, score, sort, accept
+        # Critical infra (fuel/EV) are collected alongside other
+        # tier-1 items, then the combined pool is ranked by score.
         # ═══════════════════════════════════════════════════════
 
         ci_cats_set = set(ci_cats)
-        for it in ci_fetched:
-            if len(t1_items) >= t1_budget:
-                break
-            if _within(it, ci_buffer_m) and it.category in ci_cats_set:
-                _accept(t1_items, it)
-
         t1_cats_set = set(t1_cats)
-        for it in t1_fetched:
-            if len(t1_items) >= t1_budget:
-                break
-            if _within(it, t1_buffer_m) and it.category in t1_cats_set:
-                _accept(t1_items, it)
-
-        # Supplement from local store if Overpass was thin.
-        # Include critical infra cats so fuel/EV can fill from cache too.
         t1_all_cats = list(ci_cats) + list(t1_cats)
         t1_all_cats_set = set(t1_all_cats)
-        if len(t1_items) < t1_budget:
+
+        # Collect all tier-1 candidates (deduped, within buffer)
+        t1_candidates: List[PlaceItem] = []
+        t1_seen: set[str] = set()
+
+        def _collect_t1(it: PlaceItem, buf_m: float) -> None:
+            if it.id not in t1_seen and _min_distance_to_samples_m(it.lat, it.lng, samples) <= buf_m:
+                if it.category in t1_all_cats_set:
+                    t1_candidates.append(it)
+                    t1_seen.add(it.id)
+
+        for it in ci_fetched:
+            _collect_t1(it, ci_buffer_m)
+        for it in t1_fetched:
+            _collect_t1(it, t1_buffer_m)
+
+        # Supplement from local store if Overpass was thin
+        if len(t1_candidates) < t1_budget:
             try:
                 local = self.store.query_bbox(
                     bbox=wide_bbox, categories=t1_all_cats, limit=t1_budget * 2,
                 )
                 for it in local:
-                    if len(t1_items) >= t1_budget:
-                        break
-                    if _within(it, t1_buffer_m) and it.category in t1_all_cats_set:
-                        _accept(t1_items, it)
+                    _collect_t1(it, t1_buffer_m)
             except Exception as e:
                 logger.warning("search_bundle tier1 local FAILED: %r", e)
 
-        if self.supa is not None and len(t1_items) < t1_budget:
+        if self.supa is not None and len(t1_candidates) < t1_budget:
             try:
                 supa = self.supa.query_bbox(
                     bbox=wide_bbox, categories=t1_all_cats, limit=t1_budget * 2,
@@ -1340,17 +1668,23 @@ class Places:
                 if supa:
                     self._supa_ingest_best_effort(supa)
                     for it in supa:
-                        if len(t1_items) >= t1_budget:
-                            break
-                        if _within(it, t1_buffer_m) and it.category in t1_all_cats_set:
-                            _accept(t1_items, it)
+                        _collect_t1(it, t1_buffer_m)
             except Exception as e:
                 logger.warning("search_bundle tier1 supa FAILED: %r", e)
 
-        logger.info("search_bundle tier1 DONE: accepted=%d / budget=%d", len(t1_items), t1_budget)
+        # Sort by relevance score descending, then accept top budget items
+        t1_candidates.sort(
+            key=lambda it: _score_place(it, landmark_names), reverse=True,
+        )
+        t1_items = t1_candidates[:t1_budget]
+        seen_ids.update(it.id for it in t1_items)
+
+        logger.info("search_bundle tier1 DONE: candidates=%d accepted=%d / budget=%d",
+                     len(t1_candidates), len(t1_items), t1_budget)
 
         # ═══════════════════════════════════════════════════════
-        # TIER 2 — filter + accept from parallel results
+        # TIER 2 — collect all candidates, then diversity+score
+        # cluster cap handles both scoring and category diversity.
         # ═══════════════════════════════════════════════════════
 
         t2_cats_set = set(t2_cats)
@@ -1361,7 +1695,7 @@ class Places:
                 t2_raw.append(it)
                 seen_ids.add(it.id)
 
-        if len(t2_raw) < t2_budget:
+        if len(t2_raw) < t2_budget * 3:
             try:
                 local = self.store.query_bbox(
                     bbox=tight_bbox, categories=t2_cats, limit=t2_budget * 3,
@@ -1373,7 +1707,7 @@ class Places:
             except Exception as e:
                 logger.warning("search_bundle tier2 local FAILED: %r", e)
 
-        if self.supa is not None and len(t2_raw) < t2_budget:
+        if self.supa is not None and len(t2_raw) < t2_budget * 3:
             try:
                 supa = self.supa.query_bbox(
                     bbox=tight_bbox, categories=t2_cats, limit=t2_budget * 3,
@@ -1387,11 +1721,12 @@ class Places:
             except Exception as e:
                 logger.warning("search_bundle tier2 supa FAILED: %r", e)
 
-        # Apply cluster cap then slice to budget
+        # Apply diversity-aware, score-ranked cluster cap then slice to budget
         t2_capped = _cluster_cap_tier2(
             t2_raw, samples,
             segment_km=_BUNDLE_TIER2_CLUSTER_KM,
             per_segment=_BUNDLE_TIER2_PER_CLUSTER,
+            landmark_names=landmark_names,
         )
         t2_items = t2_capped[:t2_budget]
 
@@ -1420,7 +1755,7 @@ class Places:
             places_key=pkey,
             req=bundle_req,
             items=all_items,
-            provider="bundle_v1",
+            provider="bundle_v2_scored",
             created_at=utc_now_iso(),
             algo_version=self.algo_version,
         )

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.core.contracts import OfflineBundleManifest, PlacesRequest, PlaceCategory
+from app.core.contracts import OfflineBundleManifest
 from app.core.errors import bad_request, not_found
 from app.core.storage import get_manifest
 from app.services.bundle import Bundle
@@ -52,15 +52,6 @@ class BundleBuildRequest(BaseModel):
     styles: list[str] = []
 
 
-def _default_bundle_categories() -> list[PlaceCategory]:
-    return [
-        "fuel", "toilet", "water", "camp", "town",
-        "grocery", "mechanic", "hospital", "pharmacy",
-        "cafe", "restaurant", "fast_food", "pub", "bar",
-        "hotel", "motel", "hostel",
-        "viewpoint", "attraction", "park", "beach",
-    ]
-
 
 @router.post("/build", response_model=OfflineBundleManifest)
 async def build_bundle(
@@ -95,15 +86,10 @@ async def build_bundle(
     if not cpack:
         not_found("corridor_missing", f"no corridor pack found for {cmeta.corridor_key}")
 
-    cats = _default_bundle_categories()
-
-    # 2) Deterministic places pack for offline
-    preq = PlacesRequest(
-        bbox=cpack.bbox,
-        categories=cats,
-        limit=8000,
+    # 2) Two-tier, dynamically-sized places pack for offline
+    ppack = places.search_bundle(
+        polyline6=req.geometry,
     )
-    ppack = places.search(preq)
 
     # 3) Overlay packs (cached in sqlite)
     tpack = await traffic.poll(bbox=cpack.bbox)

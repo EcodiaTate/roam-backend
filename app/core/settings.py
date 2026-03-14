@@ -314,13 +314,31 @@ class Settings(BaseSettings):
     # )
 
     # ──────────────────────────────────────────────────────────────
-    # Guide (LLM)
+    # Guide (LLM) - DeepSeek
+    # Uses DeepSeek's OpenAI-compatible /chat/completions API.
+    # deepseek-chat = DeepSeek-V3 (best quality, fast, cheap)
+    # deepseek-reasoner = DeepSeek-R1 (slower, for complex reasoning)
     # ──────────────────────────────────────────────────────────────
-    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
-    openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
+    deepseek_api_key: str = Field(default="", alias="DEEPSEEK_API_KEY")
+    deepseek_model: str = Field(default="deepseek-chat", alias="DEEPSEEK_MODEL")
+    deepseek_base_url: str = Field(default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL")
     guide_max_steps: int = Field(default=4, alias="GUIDE_MAX_STEPS")
-    guide_timeout_s: float = Field(default=25.0, alias="GUIDE_TIMEOUT_S")
+    guide_timeout_s: float = Field(default=30.0, alias="GUIDE_TIMEOUT_S")
+
+    # ──────────────────────────────────────────────────────────────
+    # Guide Web Search
+    # Gives the guide live web search so it can answer about current
+    # events, road conditions, new businesses, etc.
+    # Tavily (tavily.com) is designed for LLM consumption — returns
+    # clean extracted text, not HTML. Free tier: 1000 searches/month.
+    # Google CSE is the fallback. Set provider to "none" to disable.
+    # ──────────────────────────────────────────────────────────────
+    guide_search_provider: str = Field(default="tavily", alias="GUIDE_SEARCH_PROVIDER")
+    tavily_api_key: str = Field(default="", alias="TAVILY_API_KEY")
+    tavily_max_results: int = Field(default=5, alias="TAVILY_MAX_RESULTS")
+    google_cse_api_key: str = Field(default="", alias="GOOGLE_CSE_API_KEY")
+    google_cse_cx: str = Field(default="", alias="GOOGLE_CSE_CX")
+    guide_search_timeout_s: float = Field(default=10.0, alias="GUIDE_SEARCH_TIMEOUT_S")
 
 
 settings = Settings()

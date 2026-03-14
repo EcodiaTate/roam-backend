@@ -886,6 +886,108 @@ def _corridor_places_key(
 
 
 # ──────────────────────────────────────────────────────────────
+# Bundle-specific helpers: tiers, budget, cluster cap
+# ──────────────────────────────────────────────────────────────
+
+# Tier 1 — things you *need* on a road trip (fuel, safety, sleep, food supply).
+# Wide search radius: towns can be 100 km off-route in the outback and still
+# be the only option.  No cluster cap — you want every servo, every hospital.
+_BUNDLE_TIER1_CATS: List[PlaceCategory] = [
+    "fuel", "ev_charging", "water", "toilet", "rest_area",
+    "mechanic", "hospital", "pharmacy", "dump_point",
+    "grocery", "town",
+    "camp", "hotel", "motel", "hostel",
+    "fast_food",                    # only reliable food option on remote highways
+]
+_BUNDLE_TIER1_BUFFER_KM = 100.0    # towns/fuel up to 100 km either side
+_BUNDLE_TIER1_FRACTION  = 0.65     # 65 % of total budget reserved for tier 1
+
+# Tier 2 — things that enrich a trip but aren't survival-critical.
+# Tight corridor only; cluster-capped so one city doesn't eat all slots.
+_BUNDLE_TIER2_CATS: List[PlaceCategory] = [
+    "cafe", "restaurant", "pub", "bar", "bakery",
+    "viewpoint", "beach", "waterfall", "swimming_hole",
+    "hot_spring", "national_park", "hiking", "picnic",
+    "attraction", "heritage", "museum", "gallery",
+    "winery", "brewery", "visitor_info",
+    "park", "market",
+    "atm", "laundromat",
+    "playground", "pool", "zoo", "theme_park",
+]
+_BUNDLE_TIER2_BUFFER_KM = 5.0      # tight — only things right on the road
+_BUNDLE_TIER2_CLUSTER_KM = 10.0    # one segment = 10 km
+_BUNDLE_TIER2_PER_CLUSTER = 6      # max tier-2 items per 10 km segment
+
+
+def _bundle_places_budget(route_km: float) -> int:
+    """
+    Dynamic offline bundle size.
+
+    Scales with route length so a city hop doesn't pull 2500 places and an
+    outback crossing doesn't run dry.  Caps at 2500 to keep download lean.
+
+      50 km  →  ~350   (city loop)
+     200 km  →  ~700
+     500 km  → ~1500
+    1500 km  → ~2500   (cap)
+    """
+    raw = max(50.0, route_km) * 3.0
+    return int(max(350, min(2500, raw)))
+
+
+def _route_km_from_polyline(poly6: str) -> float:
+    """Approximate route length in km by summing decoded segment distances."""
+    pts = decode_polyline6(poly6)
+    if not pts or len(pts) < 2:
+        return 0.0
+    total = 0.0
+    for i in range(1, len(pts)):
+        total += _haversine_m(
+            (float(pts[i - 1][0]), float(pts[i - 1][1])),
+            (float(pts[i][0]), float(pts[i][1])),
+        )
+    return total / 1000.0
+
+
+def _cluster_cap_tier2(
+    items: List[PlaceItem],
+    samples: List[Tuple[float, float]],
+    segment_km: float,
+    per_segment: int,
+) -> List[PlaceItem]:
+    """
+    Prevent a dense city from eating all tier-2 slots.
+
+    Divides the route into `segment_km`-length buckets (keyed by the index of
+    the nearest sample point) and keeps at most `per_segment` items per bucket.
+    Items are accepted in the order they arrive (Overpass/local order already
+    loosely distance-sorted), so quality degrades gracefully.
+    """
+    if not samples or segment_km <= 0 or per_segment <= 0:
+        return items
+
+    # Each sample point (placed every ~8 km) forms its own bucket.
+    # Items nearest the same sample point compete for `per_segment` slots.
+    bucket_counts: Dict[int, int] = {}
+    result: List[PlaceItem] = []
+
+    for it in items:
+        best_idx = 0
+        best_d = float("inf")
+        for idx, s in enumerate(samples):
+            d = _haversine_m((it.lat, it.lng), s)
+            if d < best_d:
+                best_d = d
+                best_idx = idx
+
+        if bucket_counts.get(best_idx, 0) < per_segment:
+            result.append(it)
+            bucket_counts[best_idx] = bucket_counts.get(best_idx, 0) + 1
+
+    return result
+
+
+# ──────────────────────────────────────────────────────────────
 # Service
 # ──────────────────────────────────────────────────────────────
 
@@ -969,6 +1071,291 @@ class Places:
             pack=pack.model_dump(),
         )
         return pack
+
+    # ──────────────────────────────────────────────────────────
+    # Bundle search — two-tier, dynamic budget
+    # ──────────────────────────────────────────────────────────
+    #
+    # Tier 1 (essentials): wide radius (100 km), no cluster cap.
+    # Tier 2 (leisure):    tight radius (5 km), cluster-capped so
+    #                      one city can't eat all remaining slots.
+    #
+    # Total budget scales with route length (≈ 3 places/km, 350–2500).
+    # ──────────────────────────────────────────────────────────
+
+    def search_bundle(
+        self,
+        *,
+        polyline6: str,
+        categories: List[PlaceCategory] | None = None,
+    ) -> PlacesPack:
+        """
+        Offline-bundle-optimised place search.
+
+        Returns a dynamically-sized, relevance-structured PlacesPack ready
+        for ZIP bundling.  Pass `categories` to override the default tier
+        split (useful for testing); omit for production use.
+        """
+        route_km = _route_km_from_polyline(polyline6)
+        if route_km < 1.0:
+            # Degenerate route — fall back gracefully
+            route_km = 50.0
+
+        total_budget = _bundle_places_budget(route_km)
+        t1_budget = int(total_budget * _BUNDLE_TIER1_FRACTION)
+        t2_budget = total_budget - t1_budget
+
+        # Allow caller to override categories (e.g. user-selected interests)
+        t1_cats: List[PlaceCategory] = [c for c in (categories or []) if c in _BUNDLE_TIER1_CATS] or _BUNDLE_TIER1_CATS
+        t2_cats: List[PlaceCategory] = [c for c in (categories or []) if c in _BUNDLE_TIER2_CATS] or _BUNDLE_TIER2_CATS
+
+        cats_str_t1 = [str(c) for c in t1_cats]
+        cats_str_t2 = [str(c) for c in t2_cats]
+        all_cats_str = sorted(set(cats_str_t1 + cats_str_t2))
+
+        logger.info(
+            "search_bundle: route_km=%.1f budget=%d (t1=%d t2=%d) "
+            "t1_cats=%d t2_cats=%d t1_buf_km=%.0f t2_buf_km=%.0f",
+            route_km, total_budget, t1_budget, t2_budget,
+            len(t1_cats), len(t2_cats),
+            _BUNDLE_TIER1_BUFFER_KM, _BUNDLE_TIER2_BUFFER_KM,
+        )
+
+        pkey = _corridor_places_key(
+            polyline6,
+            _BUNDLE_TIER1_BUFFER_KM,  # use the wider radius as the cache key discriminator
+            all_cats_str,
+            total_budget,
+            self.algo_version + ".bundle_v1",
+        )
+
+        cached = get_places_pack(self.cache_conn, pkey)
+        if cached:
+            pack = PlacesPack.model_validate(cached)
+            logger.info(
+                "search_bundle cache HIT: key=%s items=%d", pkey[:16], len(pack.items)
+            )
+            return pack
+
+        logger.info("search_bundle cache MISS — running two-tier pipeline")
+
+        # ── Sample route at 8 km intervals ───────────────────
+        samples = _sample_polyline(polyline6, 8.0, include_endpoints=True)
+        if not samples:
+            logger.warning("search_bundle: no samples from polyline")
+            empty_req = PlacesRequest(
+                bbox=BBox4(minLng=0, minLat=0, maxLng=0, maxLat=0),
+                categories=t1_cats + t2_cats,
+                limit=total_budget,
+            )
+            return self._finalize_and_cache_pack(
+                PlacesPack(
+                    places_key=pkey,
+                    req=empty_req,
+                    items=[],
+                    provider="bundle_empty",
+                    created_at=utc_now_iso(),
+                    algo_version=self.algo_version,
+                ),
+                publish_to_supa=False,
+            )
+
+        t1_buffer_m = _BUNDLE_TIER1_BUFFER_KM * 1000.0
+        t2_buffer_m = _BUNDLE_TIER2_BUFFER_KM * 1000.0
+        wide_bbox   = _bbox_around_points(samples, _BUNDLE_TIER1_BUFFER_KM)
+        tight_bbox  = _bbox_around_points(samples, _BUNDLE_TIER2_BUFFER_KM)
+
+        seen_ids: set[str] = set()
+        t1_items: List[PlaceItem] = []
+        t2_items: List[PlaceItem] = []
+
+        timeout_s = float(getattr(settings, "overpass_timeout_s", 90))
+        timeout   = httpx.Timeout(timeout_s, connect=15.0)
+
+        def _within(it: PlaceItem, buf_m: float) -> bool:
+            return (
+                it.id not in seen_ids
+                and _min_distance_to_samples_m(it.lat, it.lng, samples) <= buf_m
+            )
+
+        def _accept(lst: List[PlaceItem], it: PlaceItem) -> None:
+            seen_ids.add(it.id)
+            lst.append(it)
+
+        # ═══════════════════════════════════════════════════════
+        # TIER 1 — ESSENTIALS, WIDE RADIUS
+        # ═══════════════════════════════════════════════════════
+
+        t1_filters = _overpass_filters_for_categories(t1_cats)
+        if t1_filters:
+            ql = _build_overpass_around_ql(
+                coords=samples,
+                radius_m=t1_buffer_m,
+                filters=t1_filters,
+                name_clause="",
+            )
+            logger.info(
+                "search_bundle tier1 Overpass: samples=%d radius_m=%.0f filters=%d",
+                len(samples), t1_buffer_m, len(t1_filters),
+            )
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    data = _fetch_overpass_with_retries(client=client, ql=ql)
+                fetched: List[PlaceItem] = []
+                for el in data.get("elements") or []:
+                    it = _element_to_item(el)
+                    if it is not None:
+                        fetched.append(it)
+                logger.info("search_bundle tier1 Overpass raw=%d", len(fetched))
+                if fetched:
+                    try:
+                        self.store.upsert_items(fetched)
+                    except Exception as e:
+                        logger.warning("search_bundle tier1 store upsert FAILED: %r", e)
+                    self._supa_upsert_best_effort(fetched, source="bundle_t1_overpass")
+                    for it in fetched:
+                        if len(t1_items) >= t1_budget:
+                            break
+                        if _within(it, t1_buffer_m) and it.category in t1_cats:
+                            _accept(t1_items, it)
+            except Exception as e:
+                logger.warning("search_bundle tier1 Overpass FAILED: %r", e)
+
+        # Supplement tier 1 from local store if Overpass was thin
+        if len(t1_items) < t1_budget:
+            try:
+                local = self.store.query_bbox(
+                    bbox=wide_bbox, categories=t1_cats, limit=t1_budget * 2,
+                )
+                for it in local:
+                    if len(t1_items) >= t1_budget:
+                        break
+                    if _within(it, t1_buffer_m):
+                        _accept(t1_items, it)
+            except Exception as e:
+                logger.warning("search_bundle tier1 local FAILED: %r", e)
+
+        if self.supa is not None and len(t1_items) < t1_budget:
+            try:
+                supa = self.supa.query_bbox(
+                    bbox=wide_bbox, categories=t1_cats, limit=t1_budget * 2,
+                )
+                if supa:
+                    self._supa_ingest_best_effort(supa)
+                    for it in supa:
+                        if len(t1_items) >= t1_budget:
+                            break
+                        if _within(it, t1_buffer_m):
+                            _accept(t1_items, it)
+            except Exception as e:
+                logger.warning("search_bundle tier1 supa FAILED: %r", e)
+
+        logger.info("search_bundle tier1 DONE: accepted=%d / budget=%d", len(t1_items), t1_budget)
+
+        # ═══════════════════════════════════════════════════════
+        # TIER 2 — LEISURE, TIGHT CORRIDOR, CLUSTER-CAPPED
+        # ═══════════════════════════════════════════════════════
+
+        t2_raw: List[PlaceItem] = []
+
+        t2_filters = _overpass_filters_for_categories(t2_cats)
+        if t2_filters:
+            ql = _build_overpass_around_ql(
+                coords=samples,
+                radius_m=t2_buffer_m,
+                filters=t2_filters,
+                name_clause="",
+            )
+            logger.info(
+                "search_bundle tier2 Overpass: samples=%d radius_m=%.0f filters=%d",
+                len(samples), t2_buffer_m, len(t2_filters),
+            )
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    data = _fetch_overpass_with_retries(client=client, ql=ql)
+                fetched = []
+                for el in data.get("elements") or []:
+                    it = _element_to_item(el)
+                    if it is not None:
+                        fetched.append(it)
+                logger.info("search_bundle tier2 Overpass raw=%d", len(fetched))
+                if fetched:
+                    try:
+                        self.store.upsert_items(fetched)
+                    except Exception as e:
+                        logger.warning("search_bundle tier2 store upsert FAILED: %r", e)
+                    self._supa_upsert_best_effort(fetched, source="bundle_t2_overpass")
+                    for it in fetched:
+                        if _within(it, t2_buffer_m) and it.category in t2_cats:
+                            t2_raw.append(it)
+                            seen_ids.add(it.id)
+            except Exception as e:
+                logger.warning("search_bundle tier2 Overpass FAILED: %r", e)
+
+        if len(t2_raw) < t2_budget:
+            try:
+                local = self.store.query_bbox(
+                    bbox=tight_bbox, categories=t2_cats, limit=t2_budget * 3,
+                )
+                for it in local:
+                    if it.id not in seen_ids and _within(it, t2_buffer_m):
+                        t2_raw.append(it)
+                        seen_ids.add(it.id)
+            except Exception as e:
+                logger.warning("search_bundle tier2 local FAILED: %r", e)
+
+        if self.supa is not None and len(t2_raw) < t2_budget:
+            try:
+                supa = self.supa.query_bbox(
+                    bbox=tight_bbox, categories=t2_cats, limit=t2_budget * 3,
+                )
+                if supa:
+                    self._supa_ingest_best_effort(supa)
+                    for it in supa:
+                        if it.id not in seen_ids and _within(it, t2_buffer_m):
+                            t2_raw.append(it)
+                            seen_ids.add(it.id)
+            except Exception as e:
+                logger.warning("search_bundle tier2 supa FAILED: %r", e)
+
+        # Apply cluster cap then slice to budget
+        t2_capped = _cluster_cap_tier2(
+            t2_raw, samples,
+            segment_km=_BUNDLE_TIER2_CLUSTER_KM,
+            per_segment=_BUNDLE_TIER2_PER_CLUSTER,
+        )
+        t2_items = t2_capped[:t2_budget]
+
+        logger.info(
+            "search_bundle tier2 DONE: raw=%d after_cap=%d accepted=%d / budget=%d",
+            len(t2_raw), len(t2_capped), len(t2_items), t2_budget,
+        )
+
+        # ═══════════════════════════════════════════════════════
+        # MERGE & FINALISE
+        # ═══════════════════════════════════════════════════════
+
+        all_items = t1_items + t2_items
+
+        logger.info(
+            "search_bundle FINAL: route_km=%.1f budget=%d t1=%d t2=%d total=%d",
+            route_km, total_budget, len(t1_items), len(t2_items), len(all_items),
+        )
+
+        bundle_req = PlacesRequest(
+            bbox=wide_bbox,
+            categories=t1_cats + t2_cats,
+            limit=total_budget,
+        )
+        pack = PlacesPack(
+            places_key=pkey,
+            req=bundle_req,
+            items=all_items,
+            provider="bundle_v1",
+            created_at=utc_now_iso(),
+            algo_version=self.algo_version,
+        )
+        return self._finalize_and_cache_pack(pack, publish_to_supa=True)
 
     # ──────────────────────────────────────────────────────────
     # Corridor-aware route search - OVERPASS FIRST

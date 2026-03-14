@@ -342,7 +342,7 @@ class PlacesSuggestResponse(BaseModel):
 # ──────────────────────────────────────────────────────────────
 
 GuideToolName = Literal["places_search", "places_corridor", "places_suggest"]
-GuideActionType = Literal["web", "call"]
+GuideActionType = Literal["web", "call", "map", "save"]
 
 
 class GuideMsg(BaseModel):
@@ -422,6 +422,12 @@ class GuideAction(BaseModel):
     place_name: Optional[str] = None
     url: Optional[str] = None
     tel: Optional[str] = None
+    # For type="map" — lat/lng to center the map on
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    category: Optional[str] = None
+    # For type="save" — enriched place listing for the Found tab
+    description: Optional[str] = None  # 1-2 sentence prose description
 
 
 class GuideToolCall(BaseModel):

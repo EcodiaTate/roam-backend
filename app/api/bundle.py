@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 
 from fastapi import APIRouter, Depends
@@ -86,14 +87,15 @@ async def build_bundle(
     if not cpack:
         not_found("corridor_missing", f"no corridor pack found for {cmeta.corridor_key}")
 
-    # 2) Two-tier, dynamically-sized places pack for offline
-    ppack = places.search_bundle(
-        polyline6=req.geometry,
+    # 2+3) Places, traffic, hazards — run concurrently.
+    # search_bundle is sync (httpx.Client), so run it in a thread executor
+    # so it doesn't block the event loop while traffic/hazards await I/O.
+    loop = asyncio.get_event_loop()
+    ppack, tpack, hpack = await asyncio.gather(
+        loop.run_in_executor(None, lambda: places.search_bundle(polyline6=req.geometry)),
+        traffic.poll(bbox=cpack.bbox),
+        hazards.poll(bbox=cpack.bbox),
     )
-
-    # 3) Overlay packs (cached in sqlite)
-    tpack = await traffic.poll(bbox=cpack.bbox)
-    hpack = await hazards.poll(bbox=cpack.bbox)
 
     # 4) Manifest
     return bundle.build_manifest(

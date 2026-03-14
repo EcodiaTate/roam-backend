@@ -34,10 +34,10 @@ class Settings(BaseSettings):
 
     # Places (Overpass)
     overpass_url: str = Field(default="https://overpass-api.de/api/interpreter", alias="OVERPASS_URL")
-    overpass_timeout_s: int = Field(default=90, alias="OVERPASS_TIMEOUT_S")
+    overpass_timeout_s: int = Field(default=60, alias="OVERPASS_TIMEOUT_S")
     overpass_throttle_s: float = Field(default=0.2, alias="OVERPASS_THROTTLE_S")
-    overpass_retries: int = Field(default=4, alias="OVERPASS_RETRIES")
-    overpass_retry_base_s: float = Field(default=0.75, alias="OVERPASS_RETRY_BASE_S")
+    overpass_retries: int = Field(default=2, alias="OVERPASS_RETRIES")
+    overpass_retry_base_s: float = Field(default=1.0, alias="OVERPASS_RETRY_BASE_S")
 
     # Places engine controls
     places_tile_step_deg: float = Field(default=0.15, alias="PLACES_TILE_STEP_DEG")
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
         alias="HAZARDS_ALGO_VERSION",
     )
 
-    overlays_cache_seconds: int = Field(default=120, alias="OVERLAYS_CACHE_SECONDS")
+    overlays_cache_seconds: int = Field(default=600, alias="OVERLAYS_CACHE_SECONDS")
     overlays_timeout_s: float = Field(default=15.0, alias="OVERLAYS_TIMEOUT_S")
 
     # ──────────────────────────────────────────────────────────────

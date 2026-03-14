@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -1348,19 +1349,19 @@ class Traffic:
 
         transport = httpx.AsyncHTTPTransport(retries=1)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, transport=transport) as client:
-            for state in query_states:
+            async def _poll_state(state: str) -> List[TrafficEvent]:
                 provider = _STATE_PROVIDERS.get(state)
                 if not provider:
-                    continue
+                    return []
                 try:
-                    state_items = await provider.poll(
-                        client=client,
-                        bbox=bbox,
-                        warnings=warnings,
-                    )
-                    items.extend(state_items)
+                    return await provider.poll(client=client, bbox=bbox, warnings=warnings)
                 except Exception as e:
                     warnings.append(f"traffic:{state} failed: {e}")
+                    return []
+
+            results = await asyncio.gather(*[_poll_state(s) for s in query_states])
+            for state_items in results:
+                items.extend(state_items)
 
         # Dedup by stable ID
         dedup: Dict[str, TrafficEvent] = {}

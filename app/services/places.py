@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
+import concurrent.futures
 import hashlib
 import logging
 import math
@@ -730,6 +731,15 @@ def _element_to_item(el: Dict[str, Any]) -> Optional[PlaceItem]:
             fuel_types.append(fk.replace("fuel:", ""))
     if fuel_types:
         extra["fuel_types"] = fuel_types
+        # Convenience booleans so the client doesn't have to parse the array.
+        # Only set False when we have explicit fuel_types data and the type is absent.
+        # Leave unset (undefined on client) if no fuel_types data at all, so the
+        # client doesn't incorrectly exclude stations with missing OSM tags.
+        extra["has_diesel"] = "diesel" in fuel_types
+        extra["has_unleaded"] = any(
+            t in fuel_types for t in ("octane_91", "octane_95", "octane_98")
+        )
+        extra["has_lpg"] = "lpg" in fuel_types
 
     socket_types = []
     for sk in ("socket:type2", "socket:type2_combo", "socket:chademo",
@@ -899,7 +909,7 @@ _BUNDLE_TIER1_CATS: List[PlaceCategory] = [
     "camp", "hotel", "motel", "hostel",
     "fast_food",                    # only reliable food option on remote highways
 ]
-_BUNDLE_TIER1_BUFFER_KM = 100.0    # towns/fuel up to 100 km either side
+_BUNDLE_TIER1_BUFFER_KM = 30.0     # towns/fuel up to 30 km either side
 _BUNDLE_TIER1_FRACTION  = 0.65     # 65 % of total budget reserved for tier 1
 
 # Tier 2 — things that enrich a trip but aren't survival-critical.
@@ -1183,45 +1193,73 @@ class Places:
             lst.append(it)
 
         # ═══════════════════════════════════════════════════════
-        # TIER 1 — ESSENTIALS, WIDE RADIUS
+        # OVERPASS — BOTH TIERS IN PARALLEL
+        # Tier 1 (essentials, wide) and Tier 2 (leisure, tight)
+        # are independent queries — fire them concurrently so the
+        # total wait is max(t1, t2) instead of t1 + t2.
         # ═══════════════════════════════════════════════════════
 
-        t1_filters = _overpass_filters_for_categories(t1_cats)
-        if t1_filters:
+        def _overpass_fetch_tier(
+            filters: List[str],
+            radius_m: float,
+            label: str,
+        ) -> List[PlaceItem]:
+            if not filters:
+                return []
             ql = _build_overpass_around_ql(
                 coords=samples,
-                radius_m=t1_buffer_m,
-                filters=t1_filters,
+                radius_m=radius_m,
+                filters=filters,
                 name_clause="",
             )
             logger.info(
-                "search_bundle tier1 Overpass: samples=%d radius_m=%.0f filters=%d",
-                len(samples), t1_buffer_m, len(t1_filters),
+                "search_bundle %s Overpass: samples=%d radius_m=%.0f filters=%d ql_len=%d",
+                label, len(samples), radius_m, len(filters), len(ql),
             )
             try:
                 with httpx.Client(timeout=timeout) as client:
                     data = _fetch_overpass_with_retries(client=client, ql=ql)
-                fetched: List[PlaceItem] = []
+                items: List[PlaceItem] = []
                 for el in data.get("elements") or []:
                     it = _element_to_item(el)
                     if it is not None:
-                        fetched.append(it)
-                logger.info("search_bundle tier1 Overpass raw=%d", len(fetched))
-                if fetched:
-                    try:
-                        self.store.upsert_items(fetched)
-                    except Exception as e:
-                        logger.warning("search_bundle tier1 store upsert FAILED: %r", e)
-                    self._supa_upsert_best_effort(fetched, source="bundle_t1_overpass")
-                    for it in fetched:
-                        if len(t1_items) >= t1_budget:
-                            break
-                        if _within(it, t1_buffer_m) and it.category in t1_cats:
-                            _accept(t1_items, it)
+                        items.append(it)
+                logger.info("search_bundle %s Overpass raw=%d", label, len(items))
+                return items
             except Exception as e:
-                logger.warning("search_bundle tier1 Overpass FAILED: %r", e)
+                logger.warning("search_bundle %s Overpass FAILED: %r", label, e)
+                return []
 
-        # Supplement tier 1 from local store if Overpass was thin
+        t1_filters = _overpass_filters_for_categories(t1_cats)
+        t2_filters = _overpass_filters_for_categories(t2_cats)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            f1 = pool.submit(_overpass_fetch_tier, t1_filters, t1_buffer_m, "tier1")
+            f2 = pool.submit(_overpass_fetch_tier, t2_filters, t2_buffer_m, "tier2")
+            t1_fetched = f1.result()
+            t2_fetched = f2.result()
+
+        # Persist both sets to local store + Supa (best-effort, non-blocking order)
+        all_fetched = t1_fetched + t2_fetched
+        if all_fetched:
+            try:
+                self.store.upsert_items(all_fetched)
+            except Exception as e:
+                logger.warning("search_bundle store upsert FAILED: %r", e)
+            self._supa_upsert_best_effort(all_fetched, source="bundle_overpass")
+
+        # ═══════════════════════════════════════════════════════
+        # TIER 1 — filter + accept from parallel results
+        # ═══════════════════════════════════════════════════════
+
+        t1_cats_set = set(t1_cats)
+        for it in t1_fetched:
+            if len(t1_items) >= t1_budget:
+                break
+            if _within(it, t1_buffer_m) and it.category in t1_cats_set:
+                _accept(t1_items, it)
+
+        # Supplement from local store if Overpass was thin
         if len(t1_items) < t1_budget:
             try:
                 local = self.store.query_bbox(
@@ -1253,44 +1291,16 @@ class Places:
         logger.info("search_bundle tier1 DONE: accepted=%d / budget=%d", len(t1_items), t1_budget)
 
         # ═══════════════════════════════════════════════════════
-        # TIER 2 — LEISURE, TIGHT CORRIDOR, CLUSTER-CAPPED
+        # TIER 2 — filter + accept from parallel results
         # ═══════════════════════════════════════════════════════
 
+        t2_cats_set = set(t2_cats)
         t2_raw: List[PlaceItem] = []
 
-        t2_filters = _overpass_filters_for_categories(t2_cats)
-        if t2_filters:
-            ql = _build_overpass_around_ql(
-                coords=samples,
-                radius_m=t2_buffer_m,
-                filters=t2_filters,
-                name_clause="",
-            )
-            logger.info(
-                "search_bundle tier2 Overpass: samples=%d radius_m=%.0f filters=%d",
-                len(samples), t2_buffer_m, len(t2_filters),
-            )
-            try:
-                with httpx.Client(timeout=timeout) as client:
-                    data = _fetch_overpass_with_retries(client=client, ql=ql)
-                fetched = []
-                for el in data.get("elements") or []:
-                    it = _element_to_item(el)
-                    if it is not None:
-                        fetched.append(it)
-                logger.info("search_bundle tier2 Overpass raw=%d", len(fetched))
-                if fetched:
-                    try:
-                        self.store.upsert_items(fetched)
-                    except Exception as e:
-                        logger.warning("search_bundle tier2 store upsert FAILED: %r", e)
-                    self._supa_upsert_best_effort(fetched, source="bundle_t2_overpass")
-                    for it in fetched:
-                        if _within(it, t2_buffer_m) and it.category in t2_cats:
-                            t2_raw.append(it)
-                            seen_ids.add(it.id)
-            except Exception as e:
-                logger.warning("search_bundle tier2 Overpass FAILED: %r", e)
+        for it in t2_fetched:
+            if _within(it, t2_buffer_m) and it.category in t2_cats_set:
+                t2_raw.append(it)
+                seen_ids.add(it.id)
 
         if len(t2_raw) < t2_budget:
             try:

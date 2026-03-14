@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -1735,86 +1736,84 @@ class Hazards:
         dy = bbox.maxLat - bbox.minLat
         bbox_diag = (dx * dx + dy * dy) ** 0.5
 
+        def _filter_events(evs: List[HazardEvent]) -> List[HazardEvent]:
+            out: List[HazardEvent] = []
+            for ev in evs:
+                if ev.bbox and len(ev.bbox) == 4:
+                    bb: BBox = (float(ev.bbox[0]), float(ev.bbox[1]), float(ev.bbox[2]), float(ev.bbox[3]))
+                    if _bbox_intersects(bb, bbox):
+                        out.append(ev)
+                elif bbox_diag >= 0.35:
+                    out.append(ev)
+            return out
+
         transport = httpx.AsyncHTTPTransport(retries=1)
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, transport=transport) as client:
 
-            # ─── Per-state feeds ───
+            # Build all fetch coroutines upfront so they can run concurrently.
+            async def _fetch_bom_rss(state: str, url: str) -> List[HazardEvent]:
+                try:
+                    r = await client.get(url, headers={"User-Agent": "roam/hazards"})
+                    r.raise_for_status()
+                    return _filter_events(_parse_rss(r.text, f"bom_rss_{state}", region=state))
+                except Exception as e:
+                    warnings_out.append(f"hazards:bom_rss_{state} failed: {e}")
+                    return []
+
+            async def _fetch_cap(cap_name: str, cap_url: str, state: str) -> List[HazardEvent]:
+                try:
+                    r = await client.get(cap_url, headers={"User-Agent": "roam/hazards"})
+                    r.raise_for_status()
+                    text = r.text
+                    evs = _parse_cap(text, cap_name, region=state)
+                    if not evs:
+                        evs = _parse_rss(text, cap_name, region=state)
+                    return _filter_events(evs)
+                except Exception as e:
+                    warnings_out.append(f"hazards:{cap_name} failed: {e}")
+                    return []
+
+            async def _fetch_json_feed(json_name: str, json_url: str, parser_key: str, state: str) -> List[HazardEvent]:
+                parser = _JSON_PARSERS.get(parser_key)
+                if not parser:
+                    return []
+                try:
+                    r = await client.get(json_url, headers={"User-Agent": "roam/hazards"})
+                    r.raise_for_status()
+                    return _filter_events(parser(r.text))
+                except Exception as e:
+                    warnings_out.append(f"hazards:{json_name} failed: {e}")
+                    return []
+
+            async def _fetch_dea() -> List[HazardEvent]:
+                if not getattr(settings, "dea_hotspots_enabled", False):
+                    return []
+                dea_url = getattr(settings, "dea_hotspots_url", "") or ""
+                if not dea_url:
+                    return []
+                try:
+                    r = await client.get(dea_url, headers={"User-Agent": "roam/hazards"})
+                    r.raise_for_status()
+                    return _parse_dea_hotspots_json(r.text, bbox=bbox)
+                except Exception as e:
+                    warnings_out.append(f"hazards:dea_hotspots failed: {e}")
+                    return []
+
+            # Collect every coroutine for all states + DEA into one gather call.
+            coros = []
             for state in active_states:
-                # ─── BOM RSS feed for this state ───
                 rss_url = _bom_rss_url_for_state(state)
                 if rss_url:
-                    try:
-                        r = await client.get(rss_url, headers={"User-Agent": "roam/hazards"})
-                        r.raise_for_status()
-                        rss_events = _parse_rss(r.text, f"bom_rss_{state}", region=state)
-                        for ev in rss_events:
-                            if ev.bbox and len(ev.bbox) == 4:
-                                bb: BBox = (float(ev.bbox[0]), float(ev.bbox[1]), float(ev.bbox[2]), float(ev.bbox[3]))
-                                if _bbox_intersects(bb, bbox):
-                                    items.append(ev)
-                            else:
-                                # Non-spatial → include if bbox big enough
-                                if bbox_diag >= 0.35:
-                                    items.append(ev)
-                    except Exception as e:
-                        warnings_out.append(f"hazards:bom_rss_{state} failed: {e}")
-
-                # ─── CAP/XML feeds for this state ───
+                    coros.append(_fetch_bom_rss(state, rss_url))
                 for cap_name, cap_url in _cap_feeds_for_state(state):
-                    try:
-                        r = await client.get(cap_url, headers={"User-Agent": "roam/hazards"})
-                        r.raise_for_status()
-                        text = r.text
-
-                        cap_events = _parse_cap(text, cap_name, region=state)
-                        # Some feeds may be RSS-ish; fallback attempt
-                        if not cap_events:
-                            cap_events = _parse_rss(text, cap_name, region=state)
-
-                        for ev in cap_events:
-                            if ev.bbox and len(ev.bbox) == 4:
-                                bb = (float(ev.bbox[0]), float(ev.bbox[1]), float(ev.bbox[2]), float(ev.bbox[3]))
-                                if _bbox_intersects(bb, bbox):
-                                    items.append(ev)
-                            else:
-                                if bbox_diag >= 0.35:
-                                    items.append(ev)
-                    except Exception as e:
-                        warnings_out.append(f"hazards:{cap_name} failed: {e}")
-
-                # ─── JSON emergency feeds for this state ───
+                    coros.append(_fetch_cap(cap_name, cap_url, state))
                 for json_name, json_url, parser_key in _json_feeds_for_state(state):
-                    parser = _JSON_PARSERS.get(parser_key)
-                    if not parser:
-                        continue
-                    try:
-                        r = await client.get(json_url, headers={"User-Agent": "roam/hazards"})
-                        r.raise_for_status()
-                        json_events = parser(r.text)
+                    coros.append(_fetch_json_feed(json_name, json_url, parser_key, state))
+            coros.append(_fetch_dea())
 
-                        for ev in json_events:
-                            if ev.bbox and len(ev.bbox) == 4:
-                                bb = (float(ev.bbox[0]), float(ev.bbox[1]), float(ev.bbox[2]), float(ev.bbox[3]))
-                                if _bbox_intersects(bb, bbox):
-                                    items.append(ev)
-                            else:
-                                if bbox_diag >= 0.35:
-                                    items.append(ev)
-                    except Exception as e:
-                        warnings_out.append(f"hazards:{json_name} failed: {e}")
-
-            # ─── National DEA fire hotspots (queried ONCE, not per-state) ───
-            if getattr(settings, "dea_hotspots_enabled", False):
-                dea_url = getattr(settings, "dea_hotspots_url", "") or ""
-                if dea_url:
-                    try:
-                        r = await client.get(dea_url, headers={"User-Agent": "roam/hazards"})
-                        r.raise_for_status()
-                        # Pass bbox so the parser can filter spatially
-                        dea_events = _parse_dea_hotspots_json(r.text, bbox=bbox)
-                        items.extend(dea_events)
-                    except Exception as e:
-                        warnings_out.append(f"hazards:dea_hotspots failed: {e}")
+            all_results = await asyncio.gather(*coros)
+            for batch in all_results:
+                items.extend(batch)
 
         # Dedup by id
         dedup: Dict[str, HazardEvent] = {}

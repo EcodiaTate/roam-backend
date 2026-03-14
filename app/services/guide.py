@@ -750,19 +750,21 @@ Category vocabulary: fuel, ev_charging, rest_area, toilet, water, dump_point, me
 1. SPECIFIC — Use real names, distances, and details from the data. "BP Longreach, 3.2km ahead, open 24hr" beats "there's fuel nearby". Include opening hours and phone when you have them.
 2. VIVID — One memorable detail per recommendation makes it feel like local knowledge, not a database query. "Famous for their curry pie — they sell 500 a week" or "the pool at the bottom is freezing cold and absolutely worth it". Make them WANT to stop.
 3. ACTIONS — For EVERY place you specifically name and recommend, emit action buttons so the user can interact with it. This is critical — a recommendation without actions is useless on the road.
+   Use the exact id, lat, lng from the pre-loaded places list or tool results — never invent coordinates.
    REQUIRED for every named place:
-   - Save: {{"type":"save","label":"PlaceName","place_id":"id","place_name":"PlaceName","lat":-27.5,"lng":153.0,"category":"cafe","description":"A 1-2 sentence description: what makes it worth stopping, what to order, any practical tips."}}
+   - Save: {{"type":"save","label":"PlaceName","place_id":"<exact id from data>","place_name":"PlaceName","lat":-27.5,"lng":153.0,"category":"cafe","description":"A 1-2 sentence description: what makes it worth stopping, what to order, any practical tips."}}
      The description should read like a local's recommendation — vivid, specific, helpful. Include prices, signature items, or practical details when you have them.
-   - Map: {{"type":"map","label":"Map · PlaceName","place_id":"id","place_name":"PlaceName","lat":-27.5,"lng":153.0,"category":"cafe"}}
+   - Map: {{"type":"map","label":"Map · PlaceName","place_id":"<exact id from data>","place_name":"PlaceName","lat":-27.5,"lng":153.0,"category":"cafe"}}
    OPTIONAL but include when data is available:
-   - Web: {{"type":"web","label":"Website · PlaceName","place_id":"id","place_name":"name","url":"https://..."}}
-   - Call: {{"type":"call","label":"Call PlaceName","place_id":"id","place_name":"name","tel":"0400..."}}
+   - Web: {{"type":"web","label":"Website · PlaceName","place_id":"<exact id from data>","place_name":"name","url":"https://..."}}
+   - Call: {{"type":"call","label":"Call PlaceName","place_id":"<exact id from data>","place_name":"name","tel":"0400..."}}
    Action order per place: save, map, web (if available), call (if available). Max 4 actions per place, max 5 places with actions per response.
+   If a place has a phone number in the data, ALWAYS emit a Call action. If it has a website, ALWAYS emit a Web action. These are the most useful things for a traveller.
 4. SAFETY FIRST — Fuel, fatigue, wildlife, and weather safety always override discovery recommendations. But mention safety once per topic — don't nag. Be matter-of-fact: "Next fuel is 180km — I'd fill up at Shell Cloncurry before you leave."
 5. NEVER INVENT — Only name places from the pre-loaded list, tool results, or web search results. NEVER fabricate business names, hours, phone numbers, websites, or prices. If you don't have real data, say so and offer to search. A search that returns real results is always better than an invented recommendation.
 6. LOCATION HONESTY — Never tell a user "You're in [Town]" when their GPS is elsewhere. If they ask about a specific town, search for places there — don't reuse pre-loaded places from their current location.
-7. DONE FLAG — done=true when giving a final answer. done=false ONLY when emitting a tool_call.
-8. ONE TOOL PER TURN — Maximum one tool_call. Include brief explanatory text ("Searching for lunch spots in Byron Bay...").
+7. DONE FLAG — done=true when giving a final answer. done=false ONLY when emitting tool_calls.
+8. PARALLEL TOOLS — You can emit up to 3 tool_calls in one turn when the user asks about distinct things simultaneously (e.g. "fuel AND a campsite" → emit both a fuel search and a camp search at once). Each must be a valid places_* call. Include brief text ("Searching for fuel stations and campsites along your route..."). For a single-topic query, one tool is enough.
 9. LOCAL COLOUR — Weave in regional knowledge naturally. "That's the Tablelands — the waterfall circuit is worth a 2-hour detour. Millaa Millaa Falls is the postcard shot."
 10. HONEST GAPS — If you don't have data on something, say so and offer to search. "I don't have current details on that — want me to search?"
 11. INDIGENOUS RESPECT — At indigenous sites, acknowledge Traditional Owners. Note permit requirements and access restrictions clearly and practically.
@@ -802,6 +804,7 @@ def _summarize_tool_result(tr: GuideToolResult) -> Dict[str, Any]:
         compact: List[Dict[str, Any]] = []
         for p in raw_items[:_MAX_PLACES_PER_RESULT]:
             entry: Dict[str, Any] = {
+                "id": p.get("id", ""),
                 "name": p.get("name", "?"),
                 "cat": p.get("category", "?"),
                 "lat": round(p.get("lat", 0), 4),
@@ -861,9 +864,12 @@ def _summarize_tool_result(tr: GuideToolResult) -> Dict[str, Any]:
             cl_places = cl.get("places", {}).get("items", [])
             compact_places: List[Dict[str, Any]] = []
             for p in cl_places[:6]:
-                entry = {
+                entry: Dict[str, Any] = {
+                    "id": p.get("id", ""),
                     "name": p.get("name", "?"),
                     "cat": p.get("category", "?"),
+                    "lat": round(p.get("lat", 0), 4),
+                    "lng": round(p.get("lng", 0), 4),
                 }
                 extra = p.get("extra", {})
                 if isinstance(extra, dict):
@@ -1078,7 +1084,12 @@ class GuideService:
         self._api_key = settings.deepseek_api_key
         self._model = settings.deepseek_model
         self._base = settings.deepseek_base_url.rstrip("/")
-        self._timeout = float(getattr(settings, "guide_timeout_s", 30.0))
+        self._timeout = httpx.Timeout(
+            connect=10.0,
+            read=float(getattr(settings, "guide_timeout_s", 120.0)),
+            write=10.0,
+            pool=10.0,
+        )
 
     async def _call_llm(
         self, sys_prompt: str, user_msg: str
@@ -1183,14 +1194,17 @@ class GuideService:
                 break
 
         # Process tool calls — validate and repair (only places_* tools reach here)
+        # Allow up to 3 parallel tool calls so the guide can search multiple
+        # categories simultaneously (e.g. fuel + food + camp in one round-trip).
         tool_calls = norm.get("tool_calls") or []
         validated_calls: List[Dict[str, Any]] = []
 
-        if tool_calls:
-            tc0 = tool_calls[0]
-            tool = tc0.get("tool")
-            req_obj = tc0.get("req") if isinstance(tc0.get("req"), dict) else {}
-            tc_id = tc0.get("id") or f"tc_{uuid.uuid4().hex[:8]}"
+        for tc in tool_calls[:3]:
+            if not isinstance(tc, dict):
+                continue
+            tool = tc.get("tool")
+            req_obj = tc.get("req") if isinstance(tc.get("req"), dict) else {}
+            tc_id = tc.get("id") or f"tc_{uuid.uuid4().hex[:8]}"
 
             if tool not in ("places_search", "places_corridor", "places_suggest"):
                 norm["assistant"] = (

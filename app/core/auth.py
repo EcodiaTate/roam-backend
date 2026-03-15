@@ -3,6 +3,10 @@
 # Supabase JWT verification for protected endpoints.
 # Validates the access_token from the Authorization header against
 # the Supabase project's JWKS (JSON Web Key Set).
+#
+# Supabase now uses ECC P-256 (ES256) signing keys by default.
+# The JWKS client fetches the public key and PyJWT handles the algorithm
+# automatically from the key type — we just allowlist all Supabase-issued algs.
 
 from __future__ import annotations
 
@@ -10,7 +14,7 @@ import logging
 from typing import Optional
 
 import jwt
-from fastapi import Depends, HTTPException, Request
+from fastapi import HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.settings import settings
@@ -48,6 +52,11 @@ def _get_jwks_client() -> jwt.PyJWKClient:
     return _jwks_client
 
 
+# Algorithms Supabase may use: ES256 (current P-256 keys), RS256 (legacy RSA),
+# HS256 (legacy shared secret — still verifies old unexpired tokens).
+_SUPABASE_ALGORITHMS = ["ES256", "RS256", "HS256"]
+
+
 def get_current_user(request: Request) -> AuthUser:
     """FastAPI dependency — extracts and validates the Supabase JWT."""
     token = _get_token(request)
@@ -58,7 +67,7 @@ def get_current_user(request: Request) -> AuthUser:
         payload = jwt.decode(
             token,
             signing_key.key,
-            algorithms=["RS256"],
+            algorithms=_SUPABASE_ALGORITHMS,
             audience="authenticated",
         )
     except jwt.ExpiredSignatureError:

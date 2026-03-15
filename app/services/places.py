@@ -970,16 +970,16 @@ def _bundle_places_budget(route_km: float) -> int:
     """
     Dynamic offline bundle size.
 
-    Scales with route length so a city hop doesn't pull 2500 places and an
-    outback crossing doesn't run dry.  Caps at 2500 to keep download lean.
+    Scales with route length so a city hop doesn't pull too many places and an
+    outback crossing doesn't run dry.  Caps at 5000 to keep download lean.
 
       50 km  →  ~350   (city loop)
-     200 km  →  ~700
-     500 km  → ~1500
-    1500 km  → ~2500   (cap)
+     200 km  → ~1200
+     500 km  → ~3000
+     834 km  → ~5000   (cap)
     """
-    raw = max(50.0, route_km) * 3.0
-    return int(max(350, min(2500, raw)))
+    raw = max(50.0, route_km) * 6.0
+    return int(max(350, min(5000, raw)))
 
 
 # ──────────────────────────────────────────────────────────────

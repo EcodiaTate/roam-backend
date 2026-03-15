@@ -323,7 +323,7 @@ class Settings(BaseSettings):
     deepseek_model: str = Field(default="deepseek-chat", alias="DEEPSEEK_MODEL")
     deepseek_base_url: str = Field(default="https://api.deepseek.com/v1", alias="DEEPSEEK_BASE_URL")
     guide_max_steps: int = Field(default=4, alias="GUIDE_MAX_STEPS")
-    guide_timeout_s: float = Field(default=30.0, alias="GUIDE_TIMEOUT_S")
+    guide_timeout_s: float = Field(default=90.0, alias="GUIDE_TIMEOUT_S")
 
     # ──────────────────────────────────────────────────────────────
     # ──────────────────────────────────────────────────────────────

@@ -105,9 +105,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Roam Backend", version="1.0.0", lifespan=lifespan)
 
-# Compression must be added before CORS
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -116,8 +113,10 @@ app.add_middleware(
         "ionic://localhost",
         # Local web dev
         "http://localhost:3000",
+        "http://www.localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
+        "http://www.localhost:3001",
         "http://127.0.0.1:3001",
         # Production
         "https://roam.ecodia.au",
@@ -127,6 +126,8 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
 )
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(api_router)
 

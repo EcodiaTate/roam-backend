@@ -54,11 +54,18 @@ async def _upsert_entitlement(
     if rc_app_user_id:
         row["rc_app_user_id"] = rc_app_user_id
 
-    result = supa.table("user_entitlements").upsert(
-        row, on_conflict="user_id,source"
-    ).execute()
-    if hasattr(result, "error") and result.error:
-        logger.error("[stripe] Supabase upsert error for user %s: %s", user_id, result.error)
+    logger.info("[stripe] Upserting entitlement for user %s source=%s row=%s", user_id, source, row)
+    try:
+        result = supa.table("user_entitlements").upsert(
+            row, on_conflict="user_id,source"
+        ).execute()
+        if hasattr(result, "error") and result.error:
+            logger.error("[stripe] Supabase upsert error for user %s: %s", user_id, result.error)
+        else:
+            logger.info("[stripe] Entitlement upserted successfully for user %s, data=%s", user_id, getattr(result, "data", None))
+    except Exception as exc:
+        logger.error("[stripe] Supabase upsert EXCEPTION for user %s: %s", user_id, exc, exc_info=True)
+        raise
 
 
 # ── POST /stripe/checkout ────────────────────────────────────────
@@ -104,12 +111,14 @@ async def confirm_checkout_session(
     request: Request,
     user: Optional[AuthUser] = Depends(get_optional_user),
 ):
+    logger.info("[stripe/confirm] Called. user=%s", user.id if user else None)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     body = await request.json()
     session_id: str = (body or {}).get("session_id", "")
     if not session_id or not session_id.startswith("cs_"):
+        logger.warning("[stripe/confirm] Invalid session_id: %r", session_id)
         return JSONResponse({"error": "Invalid session_id"}, status_code=400)
 
     client = _get_stripe()
@@ -118,6 +127,11 @@ async def confirm_checkout_session(
     except Exception as exc:
         logger.error("[stripe/confirm] Failed to retrieve session %s: %s", session_id, exc)
         return JSONResponse({"error": "Could not verify session"}, status_code=502)
+
+    logger.info(
+        "[stripe/confirm] Session %s: payment_status=%s, metadata=%s, customer=%s",
+        session_id, session.payment_status, session.metadata, session.customer,
+    )
 
     # Verify the session belongs to this user
     session_user_id = (session.metadata or {}).get("supabase_user_id", "")
@@ -129,16 +143,22 @@ async def confirm_checkout_session(
         return JSONResponse({"error": "Session does not belong to this user"}, status_code=403)
 
     if session.payment_status != "paid":
+        logger.info("[stripe/confirm] Session %s not paid yet: %s", session_id, session.payment_status)
         return JSONResponse({"unlocked": False, "payment_status": session.payment_status})
 
     customer = session.customer
     payment_intent = session.payment_intent
-    await _upsert_entitlement(
-        user.id,
-        "stripe",
-        stripe_customer_id=customer if isinstance(customer, str) else None,
-        stripe_payment_intent=payment_intent if isinstance(payment_intent, str) else None,
-    )
+    try:
+        await _upsert_entitlement(
+            user.id,
+            "stripe",
+            stripe_customer_id=customer if isinstance(customer, str) else None,
+            stripe_payment_intent=payment_intent if isinstance(payment_intent, str) else None,
+        )
+    except Exception as exc:
+        logger.error("[stripe/confirm] Entitlement upsert failed for user %s: %s", user.id, exc, exc_info=True)
+        return JSONResponse({"error": "Failed to grant entitlement"}, status_code=500)
+
     logger.info("[stripe/confirm] Entitlement granted for user %s via session %s", user.id, session_id)
     return {"unlocked": True}
 
@@ -220,3 +240,24 @@ async def _handle_revenuecat_webhook(request: Request) -> JSONResponse:
     logger.info("[rc/webhook] Unlocked user %s via RevenueCat", rc_user_id)
 
     return JSONResponse({"received": True})
+
+
+# ── POST /stripe/grant-manual (dev only) ──────────────────────────
+# Grants entitlement to the authenticated user without Stripe.
+# Only available when STRIPE_SECRET_KEY starts with "sk_test_".
+
+
+@router.post("/grant-manual")
+async def grant_manual_entitlement(
+    user: Optional[AuthUser] = Depends(get_optional_user),
+):
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    # Safety: only allow in test mode
+    if not settings.stripe_secret_key.startswith("sk_test_"):
+        return JSONResponse({"error": "Manual grant only available in test mode"}, status_code=403)
+
+    await _upsert_entitlement(user.id, "manual")
+    logger.info("[stripe/grant-manual] Manual entitlement granted for user %s", user.id)
+    return {"unlocked": True, "source": "manual"}

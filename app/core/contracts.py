@@ -234,23 +234,31 @@ class CorridorGraphPack(BaseModel):
 #   hiking        Walking tracks, trails, trailheads
 #   picnic        Picnic areas, BBQ spots, shelters
 #   hot_spring    Hot springs & thermal pools
+#   cave          Caves, show caves, caverns
+#   fishing       Fishing spots, boat ramps, angling areas
+#   surf          Surf breaks, surf spots
 #
 # FAMILY & RECREATION
 #   playground    Playgrounds & skate parks
 #   pool          Public swimming pools & aquatic centres
-#   zoo           Zoos, wildlife parks, sanctuaries
-#   theme_park    Theme parks, water parks, mini golf
+#   zoo           Zoos, wildlife parks, aquariums, sanctuaries
+#   theme_park    Theme parks, water parks, mini golf, go-karts
+#   dog_park      Off-leash dog parks & exercise areas
+#   golf          Golf courses (country town staple)
+#   cinema        Cinemas & drive-ins
 #
 # CULTURE & SIGHTSEEING
 #   visitor_info  Visitor information centres / i-sites
 #   museum        Museums
 #   gallery       Art galleries
-#   heritage      Heritage-listed sites, historic buildings
+#   heritage      Heritage-listed sites, historic buildings, mines, wrecks
 #   winery        Wineries & cellar doors
 #   brewery       Breweries, distilleries, cideries
-#   attraction    Generic tourist attractions, "Big Things"
-#   market        Markets (farmers, craft, weekend)
+#   attraction    Generic tourist attractions, "Big Things", public art
+#   market        Markets (farmers, craft, weekend), delis, farm stalls
 #   park          Urban parks & gardens
+#   library       Public libraries (rest day, free wifi, AC)
+#   showground    Showgrounds, racecourses (events, sometimes free camping)
 #
 # GEOCODING (from Mapbox forward search - not Overpass)
 #   address       Street address result
@@ -271,11 +279,14 @@ PlaceCategory = Literal[
     # Nature & outdoors
     "viewpoint", "waterfall", "swimming_hole", "beach",
     "national_park", "hiking", "picnic", "hot_spring",
+    "cave", "fishing", "surf",
     # Family & recreation
     "playground", "pool", "zoo", "theme_park",
+    "dog_park", "golf", "cinema",
     # Culture & sightseeing
     "visitor_info", "museum", "gallery", "heritage",
     "winery", "brewery", "attraction", "market", "park",
+    "library", "showground",
     # Geocoding (Mapbox)
     "address", "place", "region",
 ]

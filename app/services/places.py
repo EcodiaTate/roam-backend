@@ -287,6 +287,7 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
         '["tourism"="camp_site"]',
         '["tourism"="caravan_site"]',
         '["tourism"="camp_pitch"]',
+        '["tourism"="alpine_hut"]',
     ],
     "hotel": [
         '["tourism"="hotel"]',
@@ -310,9 +311,11 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
         '["natural"="water"]["sport"="swimming"]',
         '["leisure"="swimming_pool"]["access"~"^(yes|public)$"]',
         '["natural"="spring"]["bathing"="yes"]',
+        '["leisure"="bathing_place"]',
     ],
     "beach": [
         '["natural"="beach"]',
+        '["leisure"="beach_resort"]',
     ],
     "national_park": [
         '["boundary"="national_park"]',
@@ -326,6 +329,7 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
         '["route"="foot"]',
         '["information"="guidepost"]',
         '["tourism"="information"]["information"="route_marker"]',
+        '["tourism"="wilderness_hut"]',
     ],
     "picnic": [
         '["tourism"="picnic_site"]',
@@ -336,6 +340,19 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
         '["natural"="hot_spring"]',
         '["leisure"="hot_spring"]',
         '["bath:type"="hot_spring"]',
+    ],
+    "cave": [
+        '["natural"="cave_entrance"]',
+        '["tourism"="attraction"]["cave"]',
+    ],
+    "fishing": [
+        '["leisure"="fishing"]',
+        '["sport"="fishing"]',
+        '["leisure"="slipway"]',
+    ],
+    "surf": [
+        '["sport"="surfing"]',
+        '["leisure"="surfing"]',
     ],
 
     # ── FAMILY & RECREATION ──────────────────────────────────
@@ -350,11 +367,25 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
     "zoo": [
         '["tourism"="zoo"]',
         '["attraction"="animal"]',
+        '["zoo"="petting_zoo"]',
+        '["tourism"="aquarium"]',
+        '["attraction"="maze"]',
     ],
     "theme_park": [
         '["tourism"="theme_park"]',
         '["leisure"="amusement_arcade"]',
         '["leisure"="miniature_golf"]',
+        '["leisure"="trampoline_park"]',
+        '["sport"="karting"]',
+    ],
+    "dog_park": [
+        '["leisure"="dog_park"]',
+    ],
+    "golf": [
+        '["leisure"="golf_course"]',
+    ],
+    "cinema": [
+        '["amenity"="cinema"]',
     ],
 
     # ── CULTURE & SIGHTSEEING ────────────────────────────────
@@ -373,6 +404,13 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
         '["historic"="monument"]',
         '["historic"="memorial"]',
         '["historic"="ruins"]',
+        '["historic"="castle"]',
+        '["historic"="fort"]',
+        '["historic"="archaeological_site"]',
+        '["historic"="wreck"]',
+        '["historic"="mine"]',
+        '["historic"="mine_shaft"]',
+        '["historic"="bridge"]',
     ],
     "winery": [
         '["craft"="winery"]',
@@ -387,14 +425,25 @@ _FALLBACK_FILTERS: Dict[str, List[str]] = {
     ],
     "attraction": [
         '["tourism"="attraction"]',
+        '["tourism"="artwork"]',
+        '["tourism"="aquarium"]',
     ],
     "market": [
         '["amenity"="marketplace"]',
         '["shop"="farm"]',
+        '["shop"="deli"]',
+        '["shop"="greengrocer"]',
     ],
     "park": [
         '["leisure"="park"]',
         '["leisure"="garden"]',
+    ],
+    "library": [
+        '["amenity"="library"]',
+    ],
+    "showground": [
+        '["leisure"="showground"]',
+        '["leisure"="horse_racing"]',
     ],
 }
 
@@ -488,7 +537,7 @@ def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
 
     # ── ACCOMMODATION ─────────────────────────────────────────
 
-    if t in ("camp_site", "caravan_site", "camp_pitch"):
+    if t in ("camp_site", "caravan_site", "camp_pitch", "alpine_hut"):
         return "camp"
     if t == "motel":
         return "motel"
@@ -503,9 +552,9 @@ def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
         return "waterfall"
     if n == "hot_spring" or le == "hot_spring" or tags.get("bath:type") == "hot_spring":
         return "hot_spring"
-    if le == "swimming_area" or (tags.get("sport") == "swimming" and n) or (n == "spring" and tags.get("bathing") == "yes"):
+    if le in ("swimming_area", "bathing_place") or (tags.get("sport") == "swimming" and n) or (n == "spring" and tags.get("bathing") == "yes"):
         return "swimming_hole"
-    if n == "beach":
+    if n == "beach" or le == "beach_resort":
         return "beach"
     if b == "national_park" or le == "nature_reserve":
         return "national_park"
@@ -519,8 +568,17 @@ def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
         or (hw == "path" and tags.get("foot") == "designated")
         or info == "guidepost"
         or (t == "information" and info == "route_marker")
+        or t == "wilderness_hut"
     ):
         return "hiking"
+    if n == "cave_entrance":
+        return "cave"
+    if le == "fishing" or tags.get("sport") == "fishing":
+        return "fishing"
+    if le == "slipway":
+        return "fishing"  # boat ramps → fishing category
+    if tags.get("sport") == "surfing" or le == "surfing":
+        return "surf"
 
     # ── FAMILY & RECREATION ──────────────────────────────────
 
@@ -528,10 +586,16 @@ def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
         return "playground"
     if le in ("swimming_pool", "water_park") or a == "public_bath":
         return "pool"
-    if t == "zoo" or tags.get("attraction") == "animal":
+    if t == "zoo" or tags.get("attraction") == "animal" or tags.get("zoo") == "petting_zoo" or tags.get("attraction") == "maze":
         return "zoo"
-    if t == "theme_park" or le in ("amusement_arcade", "miniature_golf"):
+    if t == "theme_park" or le in ("amusement_arcade", "miniature_golf", "trampoline_park") or tags.get("sport") == "karting":
         return "theme_park"
+    if le == "dog_park":
+        return "dog_park"
+    if le == "golf_course":
+        return "golf"
+    if a == "cinema":
+        return "cinema"
 
     # ── CULTURE & SIGHTSEEING ────────────────────────────────
 
@@ -545,14 +609,20 @@ def _infer_category(tags: Dict[str, Any]) -> PlaceCategory:
         return "museum"
     if t == "gallery":
         return "gallery"
-    if tags.get("heritage") or hi in ("monument", "memorial", "ruins"):
+    if tags.get("heritage") or hi in ("monument", "memorial", "ruins", "castle", "fort", "archaeological_site", "wreck", "mine", "mine_shaft", "bridge"):
         return "heritage"
-    if a == "marketplace" or s == "farm":
+    if a == "marketplace" or s in ("farm", "deli", "greengrocer"):
         return "market"
     if le in ("park", "garden"):
         return "park"
-    if t == "attraction":
+    if t in ("attraction", "artwork"):
         return "attraction"
+    if t == "aquarium":
+        return "zoo"
+    if a == "library":
+        return "library"
+    if le in ("showground", "horse_racing"):
+        return "showground"
 
     # ── ANCHOR POINTS ────────────────────────────────────────
 
@@ -611,6 +681,14 @@ _CATEGORY_LABELS: Dict[str, str] = {
     "attraction": "Attraction",
     "market": "Market",
     "park": "Park",
+    "cave": "Cave",
+    "fishing": "Fishing Spot",
+    "surf": "Surf Spot",
+    "dog_park": "Dog Park",
+    "golf": "Golf Course",
+    "cinema": "Cinema",
+    "library": "Library",
+    "showground": "Showground",
 }
 
 
@@ -644,6 +722,8 @@ def _synthetic_name(
             base = "Caravan Park"
         elif tags.get("tourism") == "camp_pitch":
             base = "Camp Pitch"
+        elif tags.get("tourism") == "alpine_hut":
+            base = "Alpine Hut"
         if tags.get("fee") == "no":
             base = f"Free {base}"
     elif category == "hiking":
@@ -651,6 +731,8 @@ def _synthetic_name(
             base = "Walking Trail"
         elif tags.get("information") == "guidepost":
             base = "Trail Marker"
+        elif tags.get("tourism") == "wilderness_hut":
+            base = "Bush Hut"
     elif category == "heritage":
         ht = tags.get("historic", "")
         if ht == "monument":
@@ -659,6 +741,19 @@ def _synthetic_name(
             base = "Memorial"
         elif ht == "ruins":
             base = "Ruins"
+        elif ht == "mine" or ht == "mine_shaft":
+            base = "Historic Mine"
+        elif ht == "wreck":
+            base = "Shipwreck"
+        elif ht == "fort":
+            base = "Fort"
+        elif ht == "archaeological_site":
+            base = "Archaeological Site"
+        elif ht == "bridge":
+            base = "Historic Bridge"
+    elif category == "fishing":
+        if tags.get("leisure") == "slipway":
+            base = "Boat Ramp"
     elif category == "toilet":
         if tags.get("access") == "customers":
             base = "Customer Toilet"
@@ -955,13 +1050,26 @@ _BUNDLE_TIER2_CATS: List[PlaceCategory] = [
     "cafe", "restaurant", "pub", "bar", "bakery",
     "viewpoint", "beach", "waterfall", "swimming_hole",
     "hot_spring", "national_park", "hiking", "picnic",
+    "cave", "fishing", "surf",
     "attraction", "heritage", "museum", "gallery",
     "winery", "brewery", "visitor_info",
-    "park", "market",
+    "park", "market", "library", "showground",
     "atm", "laundromat",
     "playground", "pool", "zoo", "theme_park",
+    "dog_park", "golf", "cinema",
 ]
-_BUNDLE_TIER2_BUFFER_KM = 5.0      # tight — only things right on the road
+
+# High-value categories that deserve a wider search radius than generic tier-2.
+# A cracking waterfall or gorge 12 km off the highway is absolutely worth showing;
+# a laundromat 12 km away is not.
+_BUNDLE_TIER2_HIGH_VALUE_CATS: Set[str] = {
+    "viewpoint", "beach", "waterfall", "swimming_hole", "hot_spring",
+    "national_park", "hiking", "cave", "fishing", "surf",
+    "attraction", "heritage", "museum", "zoo", "theme_park",
+    "winery", "brewery", "showground",
+}
+_BUNDLE_TIER2_HIGH_VALUE_BUFFER_KM = 15.0  # wider net for destination-worthy spots
+_BUNDLE_TIER2_BUFFER_KM = 5.0              # tight for generic amenities
 _BUNDLE_TIER2_CLUSTER_KM = 10.0    # one segment = 10 km
 _BUNDLE_TIER2_PER_CLUSTER = 6      # max tier-2 items per 10 km segment
 
@@ -992,10 +1100,13 @@ def _bundle_places_budget(route_km: float) -> int:
 _CATEGORY_IMPORTANCE: Dict[str, float] = {
     # Nature highlights — these are *why* people take road trips
     "national_park": 5.0, "waterfall": 4.5, "hot_spring": 4.5,
+    "cave": 4.5, "surf": 3.5,
     "swimming_hole": 4.0, "viewpoint": 4.0, "beach": 3.5, "hiking": 3.0,
+    "fishing": 3.0,
     # Culture — destination-worthy attractions
     "museum": 4.5, "heritage": 4.0, "gallery": 3.5, "attraction": 3.5,
     "zoo": 3.5, "theme_park": 3.5, "winery": 3.0, "brewery": 3.0,
+    "showground": 2.0,
     # Towns are anchor points
     "town": 3.0, "visitor_info": 2.5,
     # Essential infrastructure — always valuable but not "destination"
@@ -1007,7 +1118,8 @@ _CATEGORY_IMPORTANCE: Dict[str, float] = {
     "fast_food": 1.0, "bar": 1.0, "rest_area": 1.0, "toilet": 0.5,
     "water": 1.0, "dump_point": 0.5, "atm": 0.5, "laundromat": 0.5,
     "picnic": 1.0, "park": 1.0, "market": 1.5, "pool": 1.5,
-    "playground": 1.0,
+    "playground": 1.0, "dog_park": 1.5, "golf": 1.5, "cinema": 1.5,
+    "library": 1.0,
 }
 
 
@@ -1453,10 +1565,11 @@ class Places:
 
         logger.info(
             "search_bundle: route_km=%.1f budget=%d (t1=%d t2=%d) "
-            "t1_cats=%d t2_cats=%d t1_buf_km=%.0f t2_buf_km=%.0f",
+            "t1_cats=%d t2_cats=%d t1_buf_km=%.0f t2_buf_km=%.0f t2_hv_buf_km=%.0f",
             route_km, total_budget, t1_budget, t2_budget,
             len(t1_cats), len(t2_cats),
             _BUNDLE_TIER1_BUFFER_KM, _BUNDLE_TIER2_BUFFER_KM,
+            _BUNDLE_TIER2_HIGH_VALUE_BUFFER_KM,
         )
 
         pkey = _corridor_places_key(
@@ -1500,8 +1613,11 @@ class Places:
 
         t1_buffer_m = _BUNDLE_TIER1_BUFFER_KM * 1000.0
         t2_buffer_m = _BUNDLE_TIER2_BUFFER_KM * 1000.0
+        t2_hv_buffer_m = _BUNDLE_TIER2_HIGH_VALUE_BUFFER_KM * 1000.0
         wide_bbox   = _bbox_around_points(samples, _BUNDLE_TIER1_BUFFER_KM)
-        tight_bbox  = _bbox_around_points(samples, _BUNDLE_TIER2_BUFFER_KM)
+        # Use the wider high-value buffer for the tier-2 bbox so we can catch
+        # destination-worthy spots further off the road
+        tight_bbox  = _bbox_around_points(samples, _BUNDLE_TIER2_HIGH_VALUE_BUFFER_KM)
 
         seen_ids: set[str] = set()
         t1_items: List[PlaceItem] = []
@@ -1599,7 +1715,10 @@ class Places:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             f1 = pool.submit(_overpass_fetch_tier, t1_filters, t1_buffer_m, "tier1")
-            f2 = pool.submit(_overpass_fetch_tier, t2_filters, t2_buffer_m, "tier2")
+            # Fetch tier 2 with the wider high-value buffer — the per-item
+            # acceptance filter below applies the tight buffer to generic
+            # categories while letting high-value destinations through at 15 km.
+            f2 = pool.submit(_overpass_fetch_tier, t2_filters, t2_hv_buffer_m, "tier2")
             f_ci = pool.submit(_overpass_fetch_critical)
             t1_fetched = f1.result()
             t2_fetched = f2.result()
@@ -1690,8 +1809,13 @@ class Places:
         t2_cats_set = set(t2_cats)
         t2_raw: List[PlaceItem] = []
 
+        def _t2_buffer_for(cat: str) -> float:
+            """High-value categories get the wider search radius."""
+            return t2_hv_buffer_m if cat in _BUNDLE_TIER2_HIGH_VALUE_CATS else t2_buffer_m
+
         for it in t2_fetched:
-            if _within(it, t2_buffer_m) and it.category in t2_cats_set:
+            buf = _t2_buffer_for(str(it.category))
+            if _within(it, buf) and it.category in t2_cats_set:
                 t2_raw.append(it)
                 seen_ids.add(it.id)
 
@@ -1701,7 +1825,8 @@ class Places:
                     bbox=tight_bbox, categories=t2_cats, limit=t2_budget * 3,
                 )
                 for it in local:
-                    if it.id not in seen_ids and _within(it, t2_buffer_m):
+                    buf = _t2_buffer_for(str(it.category))
+                    if it.id not in seen_ids and _within(it, buf):
                         t2_raw.append(it)
                         seen_ids.add(it.id)
             except Exception as e:
@@ -1715,7 +1840,8 @@ class Places:
                 if supa:
                     self._supa_ingest_best_effort(supa)
                     for it in supa:
-                        if it.id not in seen_ids and _within(it, t2_buffer_m):
+                        buf = _t2_buffer_for(str(it.category))
+                        if it.id not in seen_ids and _within(it, buf):
                             t2_raw.append(it)
                             seen_ids.add(it.id)
             except Exception as e:

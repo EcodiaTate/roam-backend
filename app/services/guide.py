@@ -97,7 +97,7 @@ def _format_places(places: List[WirePlace]) -> str:
     for cat in cats:
         lines.append(f"\n  [{cat.upper().replace('_',' ')}]")
         for p in sorted(by_cat[cat], key=lambda p: (not p.ahead, p.dist_km or 9999)):
-            parts = [f"    • {p.name}"]
+            parts = [f"    • {p.name} [id:{p.id} lat:{p.lat:.5f} lng:{p.lng:.5f}]"]
             if p.locality:
                 parts.append(p.locality)
             if p.dist_km is not None:
@@ -553,14 +553,13 @@ class GuideService:
             tc_id = tc.get("id") or f"tc_{uuid.uuid4().hex[:8]}"
 
             if tool not in ("places_search", "places_corridor", "places_suggest"):
-                norm["assistant"] = (norm.get("assistant") or "") + "\n\n(Couldn't find the right tool. Let me try differently.)"
+                # Unknown tool — silently skip; the assistant text stands on its own.
+                pass
             else:
                 fixed_req = _repair_req(tool, req_obj, req.context)
-                ok, err = _validate_tool_req(tool, fixed_req)
+                ok, _err = _validate_tool_req(tool, fixed_req)
                 if ok:
                     validated_calls.append({"id": tc_id, "tool": tool, "req": fixed_req})
-                else:
-                    norm["assistant"] = (norm.get("assistant") or "") + "\n\n(Couldn't build a valid search — let me try again.)"
 
         response_calls = [GuideToolCall(id=vc["id"], tool=vc["tool"], req=vc["req"]) for vc in validated_calls]
 

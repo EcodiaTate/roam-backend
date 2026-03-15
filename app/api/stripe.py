@@ -39,11 +39,13 @@ async def _upsert_entitlement(
     stripe_payment_intent: Optional[str] = None,
     rc_app_user_id: Optional[str] = None,
 ) -> None:
+    from datetime import datetime, timezone
+
     supa = get_supabase_admin()
     row = {
         "user_id": user_id,
         "source": source,
-        "unlocked_at": "now()",
+        "unlocked_at": datetime.now(timezone.utc).isoformat(),
     }
     if stripe_customer_id:
         row["stripe_customer_id"] = stripe_customer_id
@@ -52,9 +54,11 @@ async def _upsert_entitlement(
     if rc_app_user_id:
         row["rc_app_user_id"] = rc_app_user_id
 
-    supa.table("user_entitlements").upsert(
+    result = supa.table("user_entitlements").upsert(
         row, on_conflict="user_id,source"
     ).execute()
+    if hasattr(result, "error") and result.error:
+        logger.error("[stripe] Supabase upsert error for user %s: %s", user_id, result.error)
 
 
 # ── POST /stripe/checkout ────────────────────────────────────────
@@ -88,6 +92,55 @@ async def create_checkout_session(
     )
 
     return {"url": session.url}
+
+
+# ── POST /stripe/confirm ─────────────────────────────────────────
+# Called by the success page as a fallback when the webhook is slow.
+# Verifies the checkout session directly with Stripe and grants the entitlement.
+
+
+@router.post("/confirm")
+async def confirm_checkout_session(
+    request: Request,
+    user: Optional[AuthUser] = Depends(get_optional_user),
+):
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    body = await request.json()
+    session_id: str = (body or {}).get("session_id", "")
+    if not session_id or not session_id.startswith("cs_"):
+        return JSONResponse({"error": "Invalid session_id"}, status_code=400)
+
+    client = _get_stripe()
+    try:
+        session = client.checkout.sessions.retrieve(session_id)
+    except Exception as exc:
+        logger.error("[stripe/confirm] Failed to retrieve session %s: %s", session_id, exc)
+        return JSONResponse({"error": "Could not verify session"}, status_code=502)
+
+    # Verify the session belongs to this user
+    session_user_id = (session.metadata or {}).get("supabase_user_id", "")
+    if session_user_id != user.id:
+        logger.warning(
+            "[stripe/confirm] User %s tried to confirm session owned by %s",
+            user.id, session_user_id,
+        )
+        return JSONResponse({"error": "Session does not belong to this user"}, status_code=403)
+
+    if session.payment_status != "paid":
+        return JSONResponse({"unlocked": False, "payment_status": session.payment_status})
+
+    customer = session.customer
+    payment_intent = session.payment_intent
+    await _upsert_entitlement(
+        user.id,
+        "stripe",
+        stripe_customer_id=customer if isinstance(customer, str) else None,
+        stripe_payment_intent=payment_intent if isinstance(payment_intent, str) else None,
+    )
+    logger.info("[stripe/confirm] Entitlement granted for user %s via session %s", user.id, session_id)
+    return {"unlocked": True}
 
 
 # ── POST /stripe/webhook ─────────────────────────────────────────

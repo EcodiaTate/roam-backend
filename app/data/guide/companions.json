@@ -1,0 +1,27 @@
+[
+  {
+    "id": "family",
+    "terms": ["kids", "children", "family", "toddler", "baby", "playground", "child-friendly", "kid-friendly", "little ones", "nappy", "pram", "school holiday", "teenagers"],
+    "advice": "FAMILY TRAVEL: Prioritise playgrounds, family-friendly cafes, short walks (under 3km), swimming spots (safe!), wildlife parks, and ice cream shops. Kids need stops every 90min\u20132hrs. Warn about hazards (crocs, cliffs, deep water, rips) more explicitly. Mention if a walk has a pram-accessible option. Koala hospitals, zoos, and treetop walks are gold for families. Free entry matters \u2014 mention cost upfront."
+  },
+  {
+    "id": "couple",
+    "terms": ["partner", "wife", "husband", "romantic", "anniversary", "honeymoon", "date", "couples", "girlfriend", "boyfriend", "just the two of us"],
+    "advice": "COUPLE TRAVEL: Suggest romantic dining (book ahead), winery cellar doors for long lunches, scenic sunset spots (Cape Byron, Uluru viewing areas, Albany\u2019s Middleton Beach), boutique accommodation with character (station stays, eco retreats, heritage B&Bs), and experiences that create memories (whale watching, scenic flights, kayaking)."
+  },
+  {
+    "id": "pet",
+    "terms": ["dog", "dogs", "puppy", "pet-friendly", "pet friendly", "travelling with dog", "furry", "pooch"],
+    "advice": "TRAVELLING WITH DOG: Mention pet-friendly accommodation (not all motels accept dogs \u2014 always call ahead), off-leash beaches (usually dawn\u20139am only on patrolled beaches), and outdoor cafe seating. CRITICAL: dogs are prohibited in national parks in most states (except on a leash in some day-use areas). State forests and some free camps are dog-friendly. Never leave dogs in hot cars \u2014 fatal within 15 minutes."
+  },
+  {
+    "id": "budget",
+    "terms": ["budget", "cheap", "free", "affordable", "save money", "backpacker", "on the cheap", "not much money"],
+    "advice": "BUDGET TRAVEL: Prioritise free camps (WikiCamps, iOverlander, Campermate apps), free activities (walks, beaches, lookouts, national park drives), cheap eats (bakeries, pub meals, fish & chips, Asian takeaway in towns), and free attractions (most coastal lookouts, many museums on certain days, botanical gardens).\nTip: buying groceries in larger towns is significantly cheaper than remote general stores."
+  },
+  {
+    "id": "accessibility",
+    "terms": ["wheelchair", "accessible", "mobility", "walking aid", "elderly", "disability", "limited mobility"],
+    "advice": "ACCESSIBILITY NEEDS: Mention wheelchair accessibility where known. Many lookouts have sealed paths, some walks have paved sections. National parks generally mark accessible facilities. Call ahead to visitor centres for specific access info."
+  }
+]

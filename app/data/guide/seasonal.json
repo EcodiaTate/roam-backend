@@ -1,0 +1,42 @@
+[
+  {
+    "id": "wet_season_tropical",
+    "condition": {"tropical": true, "months": [11, 12, 1, 2, 3, 4]},
+    "text": "WET SEASON in the tropics (Nov\u2013Apr): heavy afternoon storms, potential flooding, and road closures on unsealed roads. Many outback tracks and river crossings are impassable or dangerous. Stingers (box jellyfish) in coastal waters. Accommodation is cheaper but some attractions close. Waterfalls are spectacular where accessible. Check road conditions before every unsealed leg."
+  },
+  {
+    "id": "dry_season_tropical",
+    "condition": {"tropical": true, "months": [5, 6, 7, 8, 9, 10]},
+    "text": "DRY SEASON in the tropics (May\u2013Oct): perfect conditions. Blue skies, warm days (30\u201335\u00b0C), cool nights. Peak tourist season \u2014 book accommodation ahead, especially for Kakadu, Litchfield, Kimberley. Waterfalls are flowing best early dry (May\u2013Jul). By Sep\u2013Oct, some waterholes shrink. Wildlife concentrates around remaining water sources \u2014 excellent for birding and wildlife watching."
+  },
+  {
+    "id": "bushfire_season",
+    "condition": {"tropical": false, "months": [11, 12, 1, 2, 3]},
+    "text": "BUSHFIRE SEASON (Nov\u2013Mar in southern/eastern AU): Check fire danger ratings daily via the CFA (VIC), NSW RFS, SA CFS, or DFES (WA) apps. On Total Fire Ban days, no open flames \u2014 including camp stoves in some states. Know your fire plan: identify shelter locations, keep tank full, carry water. Fires can move at 25+ km/h in strong wind \u2014 don\u2019t wait to see flames before acting."
+  },
+  {
+    "id": "whale_season",
+    "condition": {"months": [6, 7, 8, 9, 10, 11]},
+    "text": "WHALE SEASON (Jun\u2013Nov): Humpback whales migrate north then south along both coasts. East coast: Byron Bay headland, Coffs Harbour, Port Macquarie, Hervey Bay (best). West coast: Albany, Augusta, Bremer Bay. Southern Rights: Great Australian Bight, Warrnambool (Logan\u2019s Beach \u2014 nursery), Victor Harbor. Binoculars help, but breaches are visible to naked eye. Free cliff-top viewing beats paid boat tours."
+  },
+  {
+    "id": "wa_wildflower_season",
+    "condition": {"months": [8, 9, 10, 11], "lng_lt": 125},
+    "text": "WA WILDFLOWER SEASON (Aug\u2013Nov): The southwest explodes in wildflowers. Hotspots: Stirling Range NP, Fitzgerald River NP, Lesueur NP, coalfields region east of Perth. The bloom moves south to north through the season. Check wildflowerwa.com.au for current hotspots before committing to a route."
+  },
+  {
+    "id": "school_holidays",
+    "condition": {"months": [1, 4, 7, 10]},
+    "text": "SCHOOL HOLIDAY PERIOD: Popular national parks, coastal towns, and caravan parks are fully booked. Book accommodation now or find alternatives. Traffic on the Pacific, Bruce, and Great Ocean highways will be heavy. Early morning starts and late arrivals help avoid congestion."
+  },
+  {
+    "id": "extreme_heat",
+    "condition": {"months": [12, 1, 2], "lat_gt": -30},
+    "text": "EXTREME HEAT SEASON (Dec\u2013Feb, inland Australia): Temperatures can exceed 45\u201350\u00b0C in the outback. Carry minimum 5L water per person per day. Never leave the vehicle if broken down \u2014 stay with the car, it\u2019s visible from the air. Drive early (before 10 AM) and late (after 4 PM). Rest in shade midday. UV is extreme."
+  },
+  {
+    "id": "winter_south",
+    "condition": {"months": [6, 7, 8], "lat_lt": -36},
+    "text": "WINTER IN THE SOUTH (Jun\u2013Aug): Snow possible in Victorian High Country, Snowy Mountains (NSW), and Tasmanian highlands. Snow chains legally required on alpine roads even if not currently snowing \u2014 police enforce and fine heavily. Frost on bridges and overpasses at dawn. Short daylight hours \u2014 plan to reach camp or accommodation before dark (sunset 5\u20135:30 PM). Heaters and warm gear essential."
+  }
+]

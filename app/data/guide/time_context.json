@@ -1,0 +1,56 @@
+[
+  {
+    "id": "pre_dawn",
+    "hours": [4, 5],
+    "label": "Pre-dawn",
+    "advice": "Very early. Kangaroos and wallabies extremely active \u2014 drive with extreme caution. Fog possible in valleys and low-lying areas."
+  },
+  {
+    "id": "early_morning",
+    "hours": [6, 7],
+    "label": "Early morning",
+    "advice": "Dawn \u2014 wildlife still active near roads. Good time to fuel up and grab coffee. Frost on bridges in southern AU winter. Quiet on the roads \u2014 enjoy it."
+  },
+  {
+    "id": "morning",
+    "hours": [8, 9, 10, 11],
+    "label": "Morning",
+    "advice": "Prime driving hours. Good visibility, comfortable temperatures, light traffic outside cities."
+  },
+  {
+    "id": "midday",
+    "hours": [12, 13],
+    "label": "Midday",
+    "advice": "Lunch time. Good moment for a proper break \u2014 stretch, eat, hydrate, check fuel. In summer/outback, midday heat is most extreme \u2014 shade and water are essential."
+  },
+  {
+    "id": "afternoon",
+    "hours": [14, 15],
+    "label": "Afternoon",
+    "advice": "Afternoon. If on the road since morning, driver fatigue is real. Consider a break. Afternoon storms developing in QLD/NT in summer. Watch the western sky."
+  },
+  {
+    "id": "late_afternoon",
+    "hours": [16, 17],
+    "label": "Late afternoon",
+    "advice": "Golden hour approaching. Wildlife becoming active near roads. If camping or stopping, secure a site or accommodation before dark. Afternoon storms in QLD/NT summer: move quickly if a cell is building."
+  },
+  {
+    "id": "dusk",
+    "hours": [18, 19],
+    "label": "Dusk",
+    "advice": "DANGER ZONE: Kangaroos and livestock most active at dusk. Reduce speed on rural roads. Look 2\u20133 seconds ahead, not just at the road immediately in front. If you haven\u2019t found accommodation, prioritise it now."
+  },
+  {
+    "id": "evening",
+    "hours": [20, 21],
+    "label": "Evening",
+    "advice": "Night driving in rural/outback Australia is high risk. Animals are invisible until headlights catch their eyes \u2014 by then it\u2019s too late at highway speed. Consider stopping if you haven\u2019t already."
+  },
+  {
+    "id": "night",
+    "hours": [22, 23, 0, 1, 2, 3],
+    "label": "Night",
+    "advice": "DANGEROUS to drive on rural roads at night. Wildlife, fatigue, and road trains all compounded by darkness. Stop if at all possible. If continuing, drive at 80km/h max on rural roads, never at highway speed."
+  }
+]

@@ -1,0 +1,200 @@
+[
+  {
+    "id": "qld_tropical_north",
+    "name": "Tropical North Queensland",
+    "bbox": {
+      "s": -19.5,
+      "n": -10.0,
+      "w": 142.0,
+      "e": 147.5
+    },
+    "knowledge": "TROPICAL NORTH QLD — croc country. NEVER swim in rivers, creeks, or estuaries unless clearly signed safe. Saltwater crocs inhabit every waterway north of Rockhampton. Box jellyfish (stingers) in coastal water Oct–May — swim only in stinger nets at patrolled beaches. Cassowaries cross roads in the Daintree and Mission Beach areas — drive slowly, they're endangered and unpredictable.\nGreat Barrier Reef day trips: Cairns (most options, easiest), Port Douglas (smaller boats, closer reef), Townsville (SS Yongala wreck dive, spectacular), Airlie Beach (Whitsundays, sailing focus). Book ahead in peak season.\nAtherton Tablelands (behind Cairns): world-class waterfalls, crater lakes, farm gates with tropical fruit. Millaa Millaa Waterfall Circuit (Millaa Millaa, Zillie Falls, Ellinjaa Falls — 16km loop) is a must-do 2-hour detour.\nKuranda: Skyrail + train combo is the classic way; markets are touristy but fun.\nWet season (Nov–Apr): heavy afternoon storms, road closures on Gillies Hwy, Palmerston Hwy, Cape Tribulation road after rain. Mossman Gorge stays open.\nLocal tip: Lake Eacham and Lake Barrine (Atherton Tablelands) have safe swimming in crater lakes with no crocs — rare treat in croc country."
+  },
+  {
+    "id": "qld_cape_york",
+    "name": "Cape York Peninsula",
+    "bbox": {
+      "s": -16.0,
+      "n": -10.0,
+      "w": 141.0,
+      "e": 145.5
+    },
+    "knowledge": "CAPE YORK — one of Australia's last great wilderness frontiers. 4WD ESSENTIAL.\nMost tracks impassable in wet season (Nov–Apr). The Peninsula Development Road is accessible to most 4WDs; the legendary Telegraph Track (OTT/CTT) is for experienced only — serious river crossings, recovery gear mandatory.\nFuel: Coen (critical stop), Archer River Roadhouse, Bamaga, Cape York Peninsula Lodge at Seisia. Carry minimum 2 x 20L jerry cans from Coen northward.\nWater: carry 20L+ per person per day beyond Coen. Bore water at some stations.\nRiver crossings (Wenlock, Dulhunty, Jardine): check depth yourself, watch for crocs, engage low range, no momentum — steady and smooth. The Jardine River ferry at Bamaga saves the toughest crossing ($130 return, includes National Park permit).\nFruit Bat Falls (south of Jardine) and Eliot Falls: spectacular swimming/camping.\nThe Tip (Pajinka): arrive at Cape York at low tide for the full experience.\nIndigenous communities require permits — apply to Cape York Land Council.\nSat comms (InReach/SPOT/PLB) are not optional here, they're survival gear."
+  },
+  {
+    "id": "qld_outback",
+    "name": "Outback Queensland",
+    "bbox": {
+      "s": -29.0,
+      "n": -19.5,
+      "w": 138.0,
+      "e": 149.0
+    },
+    "knowledge": "OUTBACK QLD — big sky, long distances, genuine frontier culture.\nCultural anchors: Longreach (Stockman's Hall of Fame, Qantas Founders Museum — both world-class), Winton (Age of Dinosaurs Museum, Waltzing Matilda Centre, outdoor movie theatre at night), Birdsville (iconic pub, Big Red sand dune).\nRoad trains: up to 53.5m long with 3 trailers. Never overtake unless you can see clear road for 1.5km+. Pull hard left, reduce speed, wait for dust to settle.\nFuel reality: some bowsers are card-only after hours, some have no EFTPOS at all. Carry cash and top up at every servo regardless of how much you have left.\nArtesian bore baths: Mitchell (free, beautiful), Cunnamulla, Stonehenge — free, often deserted, deeply weird and wonderful at dawn.\nBirdsville Track (520km Marree to Birdsville): self-sufficient only. Oodnadatta Track: even more remote, check SA road conditions before departure.\nMin Min lights near Boulia: genuine unexplained phenomenon, best seen driving at night.\nStars are extraordinary — zero light pollution. Stop anywhere and look up.\nChannel Country after rain: floods dramatically, roads close without warning. Check QLD road conditions app (Queensland Traffic) or call the roadhouses."
+  },
+  {
+    "id": "qld_southeast",
+    "name": "South East Queensland",
+    "bbox": {
+      "s": -28.5,
+      "n": -25.5,
+      "w": 150.5,
+      "e": 154.0
+    },
+    "knowledge": "SOUTH EAST QLD — Brisbane, Gold Coast, Sunshine Coast, Glass House Mountains corridor.\nTraffic: M1/Pacific Motorway is brutal Fri afternoons (3–7 PM) and Sun evenings (4–8 PM). Allow double travel time or go early morning.\nGold Coast: Surfers Paradise is loud and touristy; Burleigh Heads is the locals' pick — great surf, excellent cafes, beautiful national park headland walk.\nNoosa: Hastings Street is upscale. Noosa NP coastal walk (Hells Gates → Fairy Pools) is stunning. Eumundi Markets (Wed/Sat) are the Sunshine Coast's best.\nHinterland: Tamborine Mountain, Springbrook NP (Natural Bridge glow worms at night), Lamington NP (tree-top canopy walk at O'Reilly's) — all within 1.5hrs of Brisbane.\nGlass House Mountains: sacred to Gubbi Gubbi people, great climbing at Ngungun (easy) and Beerwah (harder). Spectacular views.\nBrisbane CBD: South Bank Parklands is free swimming in a city beach (lagoon). New Farm and West End for cafes and markets. Valley for nightlife.\nSummer storms: severe cells develop fast, 3–5 PM most days Dec–Feb. Large hail common — don't park under trees. Watch BOM radar app."
+  },
+  {
+    "id": "nsw_sydney_region",
+    "name": "Greater Sydney & Blue Mountains",
+    "bbox": {
+      "s": -34.2,
+      "n": -33.2,
+      "w": 149.5,
+      "e": 151.6
+    },
+    "knowledge": "GREATER SYDNEY — traffic is the challenge, everything else is world-class.\nTolls: M1, M2, M5, M7, Harbour Tunnel, Harbour Bridge — register plates for casual toll payment (myroadtoll.com.au) or get an e-tag. Bill arrives weeks later.\nAvoid: CBD, M1, M2 peak hours 7–9 AM and 4–7 PM. Use Waze for real-time routing.\nBlue Mountains (1.5hr west): Katoomba (Echo Point, Three Sisters), Leura (main street cafes), Blackheath (Grand Canyon walk — spectacular, underrated). Go midweek or arrive at Echo Point before 9 AM for no crowds.\nRoyal National Park (south): the coastal walk Bundeena to Otford (26km, 2 days) is one of Australia's great walks. Grand Pacific Drive along Sea Cliff Bridge.\nNorthern Beaches: Palm Beach (shooting location for Home and Away), Avalon, Whale Beach — far quieter than Bondi. Worth the drive from the city.\nHunter Valley wineries (2hrs north): Pokolbin area — Brokenwood, Tyrrell's, Two Fat Blokes. Book lunch ahead on weekends.\nParking: $60–80/day in CBD. Catch train from Strathfield or Parramatta."
+  },
+  {
+    "id": "nsw_north_coast",
+    "name": "NSW North Coast",
+    "bbox": {
+      "s": -32.5,
+      "n": -28.2,
+      "w": 151.5,
+      "e": 154.0
+    },
+    "knowledge": "NSW NORTH COAST — one of Australia's great driving corridors, Pacific Highway.\nByron Bay: iconic but genuinely overwhelmed in summer/school holidays. Park at the rec grounds and walk, or use the shuttle bus. Lighthouse sunrise walk is unmissable — you're at Australia's most easterly point. Cape Byron marine park.\nYamba: locals' pick for an unspoilt coastal town. Best fish & chips at the Yamba Shores takeaway. Angourie Point has a freshwater rock pool right by the beach.\nCoffs Harbour: Big Banana (kitsch, kids love it), Muttonbird Island nature reserve (easy walk, shearwater colony). The Bellingen/Dorrigo detour (30km inland) has Dorrigo NP Skywalk over the rainforest canopy — free and extraordinary.\nPort Macquarie: Koala Hospital (free entry, feeding time 3 PM daily — unmissable with kids). Sea Acres Rainforest Centre. Excellent beach town.\nWhale watching (Jun–Nov): humpbacks migrate north then south. Best viewing from Cape Byron lighthouse, Lennox Head headland, Ballina.\nPacific Highway: now mostly dual carriageway but watch for the Ballina bypass and Woolgoolga sections. Speed cameras frequent through towns."
+  },
+  {
+    "id": "nsw_outback",
+    "name": "Outback NSW",
+    "bbox": {
+      "s": -34.0,
+      "n": -28.5,
+      "w": 140.5,
+      "e": 149.0
+    },
+    "knowledge": "OUTBACK NSW — Broken Hill, Lightning Ridge, White Cliffs, Bourke, Mungo.\nBroken Hill: uses SA time (not NSW time — phones may confuse you). The art scene is extraordinary for a mining town — Pro Hart Gallery, Broken Hill Regional Art Gallery, and Living Desert Sculptures at sunset are bucket-list stuff.\nLightning Ridge: black opal capital of the world. Fossick for opals yourself, visit the underground mine tours, swim in the artesian bore baths. Cash culture.\nWhite Cliffs: underground homes (dugouts) you can tour or stay in — surreal. Solar fields, epic outback sunsets, no mobile coverage.\nMungo National Park: the Walls of China (lunette dune formation) is profound. Site of the oldest known human remains in Australia (Mungo Man, 42,000 years). Deeply significant to Barkindji, Mutthi Mutthi, Nyiampaar peoples — guided tours with indigenous rangers are the only respectful way to visit. Book ahead.\nDistances: Broken Hill to Lightning Ridge is 600km. Carry extra fuel and water.\nDarling River Run: Bourke to Wentworth along the Darling — multi-day drive, beautiful river country, excellent free camps."
+  },
+  {
+    "id": "vic_great_ocean_road",
+    "name": "Great Ocean Road",
+    "bbox": {
+      "s": -39.0,
+      "n": -38.0,
+      "w": 143.0,
+      "e": 145.0
+    },
+    "knowledge": "GREAT OCEAN ROAD — one of the world's great coastal drives, 243km.\nReality check: it's SLOW. Tight curves, steep grades, tourist traffic, frequent pullover bays. Allow 2 days minimum; day-trippers from Melbourne miss everything.\nTwelve Apostles: car park full by 10 AM in summer. Go at sunrise (often empty, golden light, magical). Loch Ard Gorge (2km east) is equally stunning and less crowded. London Arch and The Grotto are on the same stretch.\nKennett River: best spot in Australia for wild koalas. Look UP in the grey gum trees along Grey River Road (500m from the highway). Dozens on any given day.\nApollo Bay: good food hub. Chris's Beacon Point restaurant has absurd ocean views (book ahead). Apollo Bay Bakery does excellent pies. Great walking nearby.\nOtways: Maits Rest rainforest walk (45min, free, stunning). Otway Fly Treetop Walk ($30, worth it, especially with kids).\nWarrnambool: Southern right whale nursery Jun–Oct. Watch from Logan's Beach platform — free, and sometimes extraordinary (mothers + calves right below you).\nBushfire risk: extreme in summer. Know CFA warnings, identify exit routes.\nBest direction: east (Torquay) to west (Warrnambool) for afternoon light on cliffs."
+  },
+  {
+    "id": "vic_high_country",
+    "name": "Victorian High Country",
+    "bbox": {
+      "s": -37.8,
+      "n": -36.2,
+      "w": 145.5,
+      "e": 148.5
+    },
+    "knowledge": "VICTORIAN HIGH COUNTRY — alpine country, ski fields, gold towns, craft food.\nWinter (Jun–Sep): chains legally required to carry on certain alpine roads (B500 to Mt Buller, Great Alpine Road to Falls Creek/Hotham). Even if not snowing, police check — $300+ fine for no chains. Buy from service stations in Bright/Mansfield.\nSki resorts: Mt Buller (biggest, closest to Melbourne, 3hr drive), Falls Creek (best snow, higher elevation, usually best conditions), Mt Hotham (great terrain, village at summit, smaller crowds).\nSummer: same mountains offer brilliant cycling (Mt Buller MTB), hiking (alpine wildflower meadows Aug–Jan), and the High Country Rail Trail.\nBright: autumn (Apr–May) is extraordinary when the European trees turn. Excellent craft brewery scene (Bright Brewery, Mt Buffalo Brewing).\nBeechworth: beautifully preserved gold rush town. Ned Kelly trial held here. Beechworth Bakery is legendary — queues are long but worth it.\nGreat Alpine Road (Wangaratta to Bairnsdale): spectacular but serious hairpin sections near Hotham summit — NOT recommended for caravans or large RVs.\nMurray to Mountains Rail Trail: 116km cycling path, flat, all-surfaces, epic."
+  },
+  {
+    "id": "sa_adelaide_region",
+    "name": "Adelaide & Wine Regions",
+    "bbox": {
+      "s": -36.0,
+      "n": -34.0,
+      "w": 138.0,
+      "e": 140.0
+    },
+    "knowledge": "ADELAIDE REGION — Australia's most underrated city, world-class wine surrounds.\nBarossa Valley (45min NE): 150+ wineries. Penfolds Grange birthplace (Magill Estate), Jacob's Creek, Henschke Hill of Grace. But the small family cellar doors (Langmeil, St Hallett, Grant Burge) are where real conversations happen.\nMcLaren Vale (45min S): more intimate than Barossa. World-class Shiraz and GSM blends. d'Arenberg Cube winery is an architectural marvel. Chalk Hill, Wirra Wirra.\nAdelaide Hills: Hahndorf (German heritage village, decent bratwurst, crowded weekends), Stirling, Crafers — cool-climate wines, excellent cafes. Golding Wines has views.\nAdelaide Central Market (Tue/Thu/Fri/Sat): one of Australia's great food markets. Go hungry. Smelly Cheese Co, Lucia's pasta, Kashmiri saffron — genuinely world-class.\nFleurieu Peninsula: Victor Harbor and Granite Island (penguin tour at dusk). Whale watching Jun–Oct from the Bluff — Southern Rights and Humpbacks offshore.\nTIME ZONE: SA is UTC+9:30 (CST), 30min behind NSW/VIC. No daylight saving confusion at some times of year. Phones auto-adjust but be aware if crossing borders.\nKangaroo Island (ferry from Cape Jervis): Remarkable Rocks, Admirals Arch, wild sea lions at Seal Bay, local honey and marron. Allow 2+ days minimum."
+  },
+  {
+    "id": "sa_outback",
+    "name": "Outback South Australia",
+    "bbox": {
+      "s": -32.0,
+      "n": -26.0,
+      "w": 134.0,
+      "e": 141.5
+    },
+    "knowledge": "OUTBACK SA — remote, dramatic, deeply Australian. Some of the harshest and most beautiful country on earth.\nCoober Pedy: opal capital of the world. Underground hotels, churches, homes carved from rock — stay underground at least one night. The heat (50°C summer) explains the subterranean lifestyle. Kanku-Breakaways Conservation Park at sunset is sublime.\nOodnadatta Track (625km Marree to Marla): UNSEALED. Check DIT road conditions (1300 361 033 or dit.sa.gov.au) before departure — after rain can close for weeks. Fuel: Marree, William Creek (tiny, expensive), Oodnadatta, Marla.\nBirdsville Track (520km Marree to Birdsville): legendary outback drive. Self-sufficient only. Excellent in April–September, brutal in summer.\nLake Eyre (Kati Thanda): fills maybe a few times per century. If it has water, scenic flights from William Creek are once-in-a-lifetime. Even bone-dry it's eerie.\nFlinders Ranges: Wilpena Pound (Ikara), Brachina Gorge geological trail. Prairie Hotel at Parachilna: famous feral mixed grill (emu, roo, camel, goat).\nPainted Desert near Arckaringa Station: spectacular — ask at William Creek.\nFUEL: Marree, William Creek, Oodnadatta, Coober Pedy, Leigh Creek. NEVER pass a bowser without topping up. No phone coverage on the tracks."
+  },
+  {
+    "id": "sa_flinders",
+    "name": "Flinders Ranges",
+    "bbox": {
+      "s": -33.5,
+      "n": -29.5,
+      "w": 137.5,
+      "e": 140.0
+    },
+    "knowledge": "FLINDERS RANGES — ancient, sacred, and spectacular. Adnyamathanha country.\nWilpena Pound (Ikara): the natural amphitheatre formed by ancient mountains. Scenic flight is worth every dollar. Base walk to Wangara Lookout (1hr return) for the classic view. St Mary Peak (Tanderra Saddle — not the summit, which is closed out of respect): 20km return, full day, spectacular ridge walk.\nBrachina Gorge Geological Trail: drive through 500 million years of Earth's geological history. Self-guided trail with roadside signs — extraordinary.\nRawnsley Park Station: great glamping/powered sites, station tours, helicopter flights.\nPrairie Hotel (Parachilna): the feral mixed grill is famous — emu, kangaroo, camel, goat on one plate. Excellent outback pub atmosphere.\nArkaroola Wilderness Sanctuary (northern Flinders): Ridgetop Tour is one of Australia's great 4WD experiences — extreme terrain, extraordinary views.\nStargazing: one of Australia's best dark sky destinations. No light pollution.\nWildlife: yellow-footed rock wallabies at Brachina and Bunyeroo gorges — gorgeous.\nSacred sites: follow all signage. Some areas are restricted — respect them."
+  },
+  {
+    "id": "wa_southwest",
+    "name": "WA South West",
+    "bbox": {
+      "s": -35.5,
+      "n": -31.0,
+      "w": 114.0,
+      "e": 117.5
+    },
+    "knowledge": "WA SOUTH WEST — tall timber, world-class wine, dramatic coastline.\nMargaret River: Cabernet Sauvignon and Chardonnay rivalling the best in the world. Vasse Felix, Leeuwin Estate, Cullen (biodynamic, outstanding), Fraser Gallop. Cellar doors generally open 10am–5pm, closed some public holidays.\nCaves (Mammoth Cave, Lake Cave, Jewel Cave, Ngilgi Cave): book ahead in school holidays. Lake Cave (self-guided, underground lake) is most spectacular.\nPemberton: Gloucester Tree (62m fire lookout — climb it if you dare). Karri forests are extraordinary — 60m+ tall trees. Beedelup Falls lovely walk.\nDenmark & Albany (south coast): The Gap, Natural Bridge, Blowholes (Torndirrup NP). Greens Pool at William Bay NP is one of Australia's best beaches — calm, crystal clear, sheltered. Go early before the crowds.\nWhale watching (Jun–Oct): Albany (Whale World Museum — historic whaling station, confronting and brilliant), Augusta (Cape Leeuwin — watch whales from the lighthouse).\nWA Wildflower Season (Aug–Nov): the south west explodes with colour. Stirling Range NP and Fitzgerald River NP are premier spots.\nDISTANCES: Perth to Margaret River 3hrs, Perth to Albany 4.5hrs. WA is BIG."
+  },
+  {
+    "id": "wa_northwest",
+    "name": "WA Northwest & Kimberley",
+    "bbox": {
+      "s": -22.0,
+      "n": -13.5,
+      "w": 119.0,
+      "e": 129.5
+    },
+    "knowledge": "KIMBERLEY / NORTHWEST WA — one of Earth's last great wilderness regions.\nCROC COUNTRY: Saltwater crocodiles in every river, creek, estuary, and some beaches. Do NOT swim unless clearly signed safe by rangers. No exceptions.\nGibb River Road (660km Broome to Kununurra): the quintessential outback adventure. 4WD essential, multiple river crossings (check depths, engage low range). Stunning gorges: Bell, Galvans, Manning, El Questro (entry fee required). DRY SEASON ONLY (May–Oct) — the Gibb is flooded and impassable in the wet.\nFuel on the Gibb: Imintji Store, Home Valley Station, El Questro. EXPENSIVE ($2.80–3.50/L) and limited — plan carefully.\nBungle Bungles (Purnululu NP): beehive domes with orange and black bands. Fly in from Kununurra or drive (4WD, rough 53km access track, 3hrs in). Cathedral Gorge (easy walk) and Echidna Chasm (morning light essential) are highlights.\nBroome: Cable Beach sunset with camels is cheesy but iconic. Staircase to the Moon (Town Beach, full moon Mar–Oct) — extraordinary optical illusion. Sun Pictures outdoor cinema — oldest operating picture garden in the world.\nIndigenous communities: permits required for many areas. Contact Kimberley Land Council in advance. Respect 'no photo' signage."
+  },
+  {
+    "id": "wa_pilbara",
+    "name": "Pilbara",
+    "bbox": {
+      "s": -24.0,
+      "n": -20.0,
+      "w": 115.0,
+      "e": 121.0
+    },
+    "knowledge": "PILBARA — ancient, vast, extremely hot, and home to Karijini.\nKarijini National Park: crown jewel of the Pilbara. Dales Gorge + Fortescue Falls (accessible, beautiful pool), Hancock Gorge + Kermit's Pool (moderate scramble), Weano Gorge + Handrail Pool (moderate, spectacular), Joffre Falls (stunning).\nThe Eco Retreat (premium camping) and Karijini eco lodge are the best bases.\nHEAT: Nov–Mar temperatures regularly exceed 45°C in the Pilbara. Travel Apr–Sep only for gorge walking. Carry 5L+ water per person per day.\nRoad trains: massive mining trucks (2–3 trailers, 53m+). Give them absolute right of way on single-lane roads. They cannot stop and will not stop for you.\nMillstream-Chichester NP: Python Pool — a lush oasis swimming hole amid spinifex.\nPort Hedland: massive mining port, not scenic, but Courthouse Gallery has outstanding indigenous art. Sunset over the salt flats is surprisingly beautiful.\nBurrup Peninsula (Murujuga NP): world's largest collection of ancient rock art — 40,000+ petroglyphs spanning 30,000 years. UNESCO nomination pending. Sacred to Yaburara/Mardudhunera people. Guided tours available from Karratha.\nFuel: Newman, Tom Price, Port Hedland, Karratha. 200–300km gaps — plan ahead."
+  },
+  {
+    "id": "nt_top_end",
+    "name": "Top End NT",
+    "bbox": {
+      "s": -15.5,
+      "n": -11.0,
+      "w": 129.0,
+      "e": 137.5
+    },
+    "knowledge": "TOP END NT — Darwin, Kakadu, Litchfield, Arnhem Land. Dry season only for visits.\nCROC COUNTRY: Saltwater crocs in every river, creek, estuary, and coastal beach. No swimming anywhere unless explicitly signed safe by Parks Australia rangers.\nKakadu NP (world's largest NP at 20,000km²): Ubirr rock art at sunset (extraordinary, arrive 45min early for the climb), Yellow Water Billabong cruise (must-book, best at dawn — crocs, jabiru, sea eagles), Jim Jim Falls (4WD, dry season only — 60m sheer drop into a pool, extraordinary). Allow 3+ days minimum.\nLitchfield NP (1.5hrs from Darwin): termite cathedral mounds, Wangi Falls (safe swimming when open), Florence Falls (50m walk, stunning plunge pool), Buley Rockhole (series of rock pools). Close to Darwin, worth every visitor.\nDarwin: Mindil Beach Sunset Market (Thu + Sun in dry season) — excellent food, sunset, mellow vibe. Museum and Art Gallery of NT (free, Cyclone Tracy exhibits). Crocosaurus Cove (swim with crocs in the Cage of Death — $180, insane).\nDRY SEASON (May–Oct): blue skies, low humidity, all roads open. THE time to visit.\nArnhem Land: permit from Northern Land Council (8936 8900) weeks in advance. Limited access, unique Aboriginal culture, remarkable landscape."
+  },
+  {
+    "id": "nt_red_centre",
+    "name": "Red Centre",
+    "bbox": {
+      "s": -26.0,
+      "n": -22.0,
+      "w": 129.0,
+      "e": 138.0
+    },
+    "knowledge": "RED CENTRE — the spiritual heart of Australia. Anangu and Arrernte country.\nUluru (Ayers Rock): CLIMBING IS PERMANENTLY CLOSED and strongly discouraged by the Anangu traditional owners — and the law. It is a place of deep spiritual significance, not a landmark to be conquered. The 10.6km base walk at dawn or dusk is extraordinary — the colour changes are unreal. Sunrise/sunset viewing areas have free access. Guided cultural walks with Anangu rangers are unmissable.\nKata Tjuta (the Olgas): Valley of the Winds walk (7.4km, moderate, 3–4hrs) is arguably MORE spectacular than Uluru and receives far fewer visitors. Go early.\nKings Canyon (Watarrka NP, 3hrs from Uluru): Rim Walk (6km, moderate, 3hrs) is stunning — Garden of Eden swimming hole halfway round. LEAVE BY 9 AM in summer.\nWest MacDonnell Ranges (from Alice Springs): Simpsons Gap, Standley Chasm (jaw-dropping at midday when the sun hits the walls), Ormiston Pound, Glen Helen Gorge, Ellery Creek Big Hole (safe swimming). Larapinta Trail (223km, 12-day multi-day hike) is one of Australia's great long-distance walks.\nAlice Springs: Desert Park (world-class arid zone wildlife, nocturnal house). HEAT: Summer temps 45–50°C. Carry 5L+ water per person for any walking.\nFuel: Alice Springs, Erldunda roadhouse, Yulara (Uluru), Kings Canyon Resort."
+  },
+  {
+    "id": "tas_general",
+    "name": "Tasmania",
+    "bbox": {
+      "s": -43.8,
+      "n": -39.5,
+      "w": 143.5,
+      "e": 149.0
+    },
+    "knowledge": "TASMANIA — compact, dramatically beautiful, and genuinely different.\nDistances are short by mainland standards but roads are NARROW and winding. A 'highway' in Tas may be a single-lane B-road. Double your travel time estimates.\nCradle Mountain: Dove Lake circuit (6km, 2–3hrs, easy — wheelchair accessible at parts) is the icon. Overland Track (65km, 6 days, world-class alpine walk) — book a year ahead for peak season. Devil spotting at dusk around the lodge.\nFreycinet NP (east coast): Wineglass Bay lookout (1.5hr return hike — worth every step). Hazards Beach circuit (11km) for beach access. Pristine white sand.\nBay of Fires (northeast): orange lichen-covered granite boulders and white sand — consistently voted world's best beach. Binalong Bay is the gateway.\nMONA (Museum of Old and New Art, Hobart): one of the world's great art experiences. Confronting, brilliant, unmissable. Take the MONA Roma ferry from Hobart Waterfront (40min, book ahead). Closed Tue.\nSalamanca Market (Sat, Hobart): exceptional — local food, art, craft. Farm Gate Market (Sun morning, Bathurst St) smaller but serious foodie focus.\nBruny Island: Get Shucked oysters (best oysters in Australia, from $3 each), Bruny Island Cheese Co, The Neck wildlife sanctuary (mutton birds at dusk).\nWEATHER: changes violently and without warning. Pack a full rain layer even in summer. Four seasons in one day is genuinely possible in the highlands."
+  }
+]

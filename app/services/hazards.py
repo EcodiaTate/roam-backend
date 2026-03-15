@@ -1307,25 +1307,13 @@ def _parse_dea_hotspots_json(json_text: str, *, bbox: BBox4) -> List[HazardEvent
         else:
             title = "Satellite Fire Hotspot"
 
-        # Description: satellite details + temperature
+        # Description: actionable info only (skip satellite/sensor/temp/power)
         desc_parts: List[str] = []
-        if satellite and sensor:
-            desc_parts.append(f"Detected by {satellite}/{sensor}")
-        elif satellite:
-            desc_parts.append(f"Detected by {satellite}")
-        if temp_k is not None:
-            try:
-                desc_parts.append(f"Temp: {int(float(temp_k))}K")
-            except (ValueError, TypeError):
-                pass
-        if power is not None:
-            try:
-                desc_parts.append(f"Power: {float(power):.1f}MW")
-            except (ValueError, TypeError):
-                pass
+        if fire_cat:
+            desc_parts.append(fire_cat)
         desc_parts.append(f"Confidence: {conf_val}%")
         if hours_val < 999:
-            desc_parts.append(f"{hours_val:.0f}h ago")
+            desc_parts.append(f"Detected {hours_val:.0f}h ago")
         desc = ". ".join(desc_parts) if desc_parts else None
 
         # Severity based on confidence + recency
